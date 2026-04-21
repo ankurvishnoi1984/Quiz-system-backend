@@ -5,7 +5,8 @@ const authorizeRoles = require("../middlewares/role.middleware");
 
 const router = express.Router();
 
-router.use(authMiddleware);
+// Scope auth to question-related paths only.
+router.use(["/sessions", "/questions"], authMiddleware);
 
 router.get(
   "/sessions/:sessionId/questions",

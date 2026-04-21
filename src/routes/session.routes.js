@@ -9,7 +9,8 @@ const router = express.Router();
 router.get("/sessions/join/:code", sessionController.lookupByCode);
 router.post("/sessions/join/:code", sessionController.joinByCode);
 
-router.use(authMiddleware);
+// Only protect session/department management routes in this router.
+router.use(["/departments", "/sessions"], authMiddleware);
 
 router.get(
   "/departments/:deptId/sessions",

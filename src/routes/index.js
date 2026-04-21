@@ -4,6 +4,9 @@ const clientRoutes = require("./client.routes");
 const departmentRoutes = require("./department.routes");
 const sessionRoutes = require("./session.routes");
 const questionRoutes = require("./question.routes");
+const responseRoutes = require("./response.routes");
+const qaRoutes = require("./qa.routes");
+const mediaRoutes = require("./media.routes");
 
 const router = express.Router();
 
@@ -19,5 +22,8 @@ router.use("/clients", clientRoutes);
 router.use("/departments", departmentRoutes);
 router.use("/", sessionRoutes);
 router.use("/", questionRoutes);
+router.use("/", responseRoutes);
+router.use("/", qaRoutes);
+router.use("/", mediaRoutes);
 
 module.exports = router;
