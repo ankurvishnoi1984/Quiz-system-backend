@@ -7,6 +7,7 @@ const questionRoutes = require("./question.routes");
 const responseRoutes = require("./response.routes");
 const qaRoutes = require("./qa.routes");
 const mediaRoutes = require("./media.routes");
+const analyticsRoutes = require("./analytics.routes");
 
 const router = express.Router();
 
@@ -25,5 +26,6 @@ router.use("/", questionRoutes);
 router.use("/", responseRoutes);
 router.use("/", qaRoutes);
 router.use("/", mediaRoutes);
+router.use("/", analyticsRoutes);
 
 module.exports = router;
