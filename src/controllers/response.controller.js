@@ -7,6 +7,8 @@ const {
   exportSessionResponsesCsv
 } = require("../services/response.service");
 const { validateSubmitResponsePayload } = require("../validators/response.validator");
+const { broadcastResponse, notifySessionProgress } = require("../services/websocket.service");
+const { Session } = require("../models");
 
 async function submit(req, res) {
   try {
@@ -18,6 +20,15 @@ async function submit(req, res) {
       participant: req.participant,
       input: req.body
     });
+    const session = await Session.findByPk(response.session_id, { attributes: ["session_code"] });
+    if (session) {
+      broadcastResponse({
+        sessionCode: session.session_code,
+        sessionId: response.session_id,
+        response
+      });
+      notifySessionProgress(session.session_code, response.session_id).catch(() => {});
+    }
     return successResponse(res, { response }, "Response submitted", 201);
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);

@@ -1,5 +1,6 @@
-const { Session, Department, User, Participant, Client } = require("../models");
+const { Session, Department, User, Participant, Client, Question, Response } = require("../models");
 const { signAccessToken } = require("../utils/jwt");
+const { notifySessionProgress } = require("./websocket.service");
 
 function canAccessDepartment(user, department) {
   if (user.role === "super_admin") return true;
@@ -81,11 +82,54 @@ async function listDepartmentSessions({ deptId, status, user }) {
   if (status) where.status = status;
   if (user.role === "host") where.host_id = user.user_id;
 
-  return Session.findAll({
+  const sessions = await Session.findAll({
     where,
     include: [{ model: User, attributes: ["user_id", "full_name", "email"] }],
     order: [["session_id", "DESC"]]
   });
+
+  const withParticipantCounts = await Promise.all(
+    sessions.map(async (session) => {
+      const [participantsCount, questionCount, responses] = await Promise.all([
+        Participant.count({
+          where: { session_id: session.session_id }
+        }),
+        Question.count({
+          where: { session_id: session.session_id }
+        }),
+        Response.findAll({
+          where: { session_id: session.session_id },
+          attributes: ["participant_id", "question_id"]
+        })
+      ]);
+
+      const uniqueQuestionSets = new Map();
+      responses.forEach((row) => {
+        const key = Number(row.participant_id);
+        if (!uniqueQuestionSets.has(key)) uniqueQuestionSets.set(key, new Set());
+        uniqueQuestionSets.get(key).add(Number(row.question_id));
+      });
+
+      let completedParticipants = 0;
+      if (questionCount > 0) {
+        uniqueQuestionSets.forEach((qSet) => {
+          if (qSet.size >= questionCount) completedParticipants += 1;
+        });
+      }
+
+      const completionProgress =
+        participantsCount > 0 ? Math.round((completedParticipants / participantsCount) * 100) : 0;
+
+      return {
+        ...session.toJSON(),
+        participants_count: participantsCount,
+        completed_participants: completedParticipants,
+        completion_progress: completionProgress
+      };
+    })
+  );
+
+  return withParticipantCounts;
 }
 
 async function createSession({ deptId, input, user }) {
@@ -249,7 +293,8 @@ async function joinSession({ code, payload }) {
         device_fingerprint: payload.device_fingerprint
       }
     });
-    if (existing) {
+    const wantsFreshIdentity = Boolean(payload.nickname || payload.avatar_url) || payload.force_new_participant === true;
+    if (existing && !wantsFreshIdentity) {
       return {
         participant: existing,
         token: signAccessToken({
@@ -270,6 +315,10 @@ async function joinSession({ code, payload }) {
     is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
     device_fingerprint: payload.device_fingerprint || null
   });
+
+  if (session.session_code) {
+    notifySessionProgress(session.session_code, session.session_id).catch(() => {});
+  }
 
   return {
     participant,

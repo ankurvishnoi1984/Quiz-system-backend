@@ -12,6 +12,7 @@ const env = {
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || ""
   },
+  jwtSecret: process.env.JWT_ACCESS_SECRET || "change_this_access_secret",
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET || "change_this_access_secret",
     accessExpiry: process.env.JWT_ACCESS_EXPIRY || "1h",

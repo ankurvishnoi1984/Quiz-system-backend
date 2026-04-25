@@ -13,6 +13,8 @@ const {
   validateUpdateQuestionPayload,
   validateReorderPayload
 } = require("../validators/question.validator");
+const { notifyQuestionChange } = require("../services/websocket.service");
+const { Session } = require("../models");
 
 async function listBySession(req, res) {
   try {
@@ -129,6 +131,12 @@ function setLiveState(isLive) {
         user: req.user,
         isLive
       });
+      const session = await Session.findByPk(question.session_id, {
+        attributes: ["session_code"]
+      });
+      if (session?.session_code) {
+        notifyQuestionChange(session.session_code, question.question_id, isLive);
+      }
       return successResponse(
         res,
         { question },

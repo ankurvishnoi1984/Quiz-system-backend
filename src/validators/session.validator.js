@@ -67,6 +67,13 @@ function validateJoinSessionPayload(payload) {
     errors.push("nickname must be a non-empty string when provided");
   }
 
+  if (
+    payload?.force_new_participant !== undefined &&
+    typeof payload.force_new_participant !== "boolean"
+  ) {
+    errors.push("force_new_participant must be a boolean when provided");
+  }
+
   return errors;
 }
 

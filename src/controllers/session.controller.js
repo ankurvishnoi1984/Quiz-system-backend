@@ -15,6 +15,7 @@ const {
   validateUpdateSessionPayload,
   validateJoinSessionPayload
 } = require("../validators/session.validator");
+const { notifySessionUpdate } = require("../services/websocket.service");
 
 async function listByDepartment(req, res) {
   try {
@@ -104,6 +105,9 @@ function lifecycleAction(action) {
         user: req.user,
         action
       });
+      if (session?.session_code) {
+        notifySessionUpdate(session.session_code, session.status);
+      }
       return successResponse(
         res,
         { session },
