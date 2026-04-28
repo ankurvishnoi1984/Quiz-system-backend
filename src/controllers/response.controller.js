@@ -4,7 +4,8 @@ const {
   getQuestionResults,
   getSessionResponses,
   getSessionSummary,
-  exportSessionResponsesCsv
+  exportSessionResponsesCsv,
+  listParticipantQuestionsService
 } = require("../services/response.service");
 const { validateSubmitResponsePayload } = require("../validators/response.validator");
 const { broadcastResponse, notifySessionProgress } = require("../services/websocket.service");
@@ -88,10 +89,28 @@ async function sessionExport(req, res) {
   }
 }
 
+async function listParticipantQuestions(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+
+    const questions = await listParticipantQuestionsService({
+      sessionId,
+      participant: req.participant
+    });
+    return successResponse(res, { questions }, "Questions fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   submit,
   questionResults,
   sessionResponses,
   sessionSummary,
-  sessionExport
+  sessionExport,
+  listParticipantQuestions
 };

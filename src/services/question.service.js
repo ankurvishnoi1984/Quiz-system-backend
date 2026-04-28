@@ -44,9 +44,12 @@ async function getSessionForQuestionFlow(sessionId) {
   return session;
 }
 
-async function listSessionQuestions({ sessionId, user }) {
+async function listSessionQuestions({ sessionId, user, publicView = false }) {
   const session = await getSessionForQuestionFlow(sessionId);
-  assertScopeAccess(user, session);
+
+  if (!publicView && user) {
+    assertScopeAccess(user, session);
+  }
 
   return Question.findAll({
     where: { session_id: sessionId },

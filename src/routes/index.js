@@ -21,9 +21,9 @@ router.get("/health", (_req, res) => {
 router.use("/auth", authRoutes);
 router.use("/clients", clientRoutes);
 router.use("/departments", departmentRoutes);
+router.use("/", responseRoutes);
 router.use("/", sessionRoutes);
 router.use("/", questionRoutes);
-router.use("/", responseRoutes);
 router.use("/", qaRoutes);
 router.use("/", mediaRoutes);
 router.use("/", analyticsRoutes);

@@ -218,10 +218,42 @@ async function exportSessionResponsesCsv({ sessionId, user }) {
   return [header.join(","), ...csvRows].join("\n");
 }
 
+async function getSessionForQuestionFlow(sessionId) {
+  const session = await Session.findByPk(sessionId, {
+    include: [{ model: Department }]
+  });
+  if (!session) {
+    const error = new Error("Session not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  return session;
+}
+
+async function listParticipantQuestionsService({ sessionId, participant }) {
+  const session = await getSessionForQuestionFlow(sessionId);
+
+  if (participant && Number(participant.session_id) !== Number(sessionId)) {
+    const error = new Error("Access denied to this session");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return Question.findAll({
+    where: { session_id: sessionId },
+    include: [{ model: QuestionOption }],
+    order: [
+      ["display_order", "ASC"],
+      [QuestionOption, "display_order", "ASC"]
+    ]
+  });
+}
+
 module.exports = {
   submitResponse,
   getQuestionResults,
   getSessionResponses,
   getSessionSummary,
-  exportSessionResponsesCsv
+  exportSessionResponsesCsv,
+  listParticipantQuestionsService
 };

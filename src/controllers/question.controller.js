@@ -32,6 +32,28 @@ async function listBySession(req, res) {
   }
 }
 
+async function listBySessionPublic(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+
+    // Verify participant has access to this session
+    if (req.participant && Number(req.participant.session_id) !== Number(sessionId)) {
+      return errorResponse(res, "Access denied to this session", 403);
+    }
+
+    const questions = await listSessionQuestions({
+      sessionId,
+      publicView: true
+    });
+    return successResponse(res, { questions }, "Questions fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function createForSession(req, res) {
   try {
     const sessionId = Number(req.params.sessionId);
@@ -151,6 +173,7 @@ function setLiveState(isLive) {
 
 module.exports = {
   listBySession,
+  listBySessionPublic,
   createForSession,
   detail,
   update,
