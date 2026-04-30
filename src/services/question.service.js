@@ -127,11 +127,11 @@ async function updateQuestion({ questionId, input, user }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
 
-  if (session.status !== "draft") {
+  /*if (session.status !== "draft") {
     const error = new Error("Only draft-session questions can be updated");
     error.statusCode = 400;
     throw error;
-  }
+  }*/
 
   Object.assign(question, {
     question_type:
