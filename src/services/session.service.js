@@ -153,21 +153,21 @@ async function createSession({ deptId, input, user }) {
     throw error;
   }
 
-  const sessionCode = await generateSessionCode();
-  return Session.create({
-    dept_id: Number(deptId),
-    host_id: Number(input.host_id),
-    title: input.title.trim(),
-    description: input.description || null,
-    session_code: sessionCode,
-    status: "draft",
-    is_anonymous_default: input.is_anonymous_default ?? false,
-    max_participants: input.max_participants || 500,
-    show_results_to_participants: input.show_results_to_participants ?? true,
-    allow_late_join: input.allow_late_join ?? true,
-    leaderboard_enabled: input.leaderboard_enabled ?? true,
-    qr_code_url: input.qr_code_url || null
-  });
+   const sessionCode = await generateSessionCode();
+   return Session.create({
+     dept_id: Number(deptId),
+     host_id: Number(input.host_id),
+     title: input.title.trim(),
+     description: input.description || null,
+     session_code: sessionCode,
+     status: "draft",
+     join_type: input.join_type ?? 'name',
+     max_participants: input.max_participants || 500,
+     show_results_to_participants: input.show_results_to_participants ?? true,
+     allow_late_join: input.allow_late_join ?? true,
+     leaderboard_enabled: input.leaderboard_enabled ?? true,
+     qr_code_url: input.qr_code_url || null
+   });
 }
 
 async function getSessionById({ sessionId, user }) {
@@ -307,14 +307,15 @@ async function joinSession({ code, payload }) {
     }
   }
 
-  const participant = await Participant.create({
-    session_id: session.session_id,
-    dept_id: session.dept_id,
-    nickname: payload.nickname || null,
-    avatar_url: payload.avatar_url || null,
-    is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
-    device_fingerprint: payload.device_fingerprint || null
-  });
+   const participant = await Participant.create({
+     session_id: session.session_id,
+     dept_id: session.dept_id,
+     nickname: payload.nickname || null,
+     email: payload.email || null,
+     avatar_url: payload.avatar_url || null,
+     is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
+     device_fingerprint: payload.device_fingerprint || null
+   });
 
   if (session.session_code) {
     notifySessionProgress(session.session_code, session.session_id).catch(() => {});

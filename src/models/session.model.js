@@ -35,10 +35,10 @@ const Session = sequelize.define(
       allowNull: true,
       defaultValue: "draft"
     },
-    is_anonymous_default: {
-      type: DataTypes.BOOLEAN,
-      allowNull: true,
-      defaultValue: false
+    join_type: {
+      type: DataTypes.ENUM('name', 'anonymous', 'name_email'),
+      allowNull: false,
+      defaultValue: 'name'
     },
     password_hash: {
       type: DataTypes.TEXT,

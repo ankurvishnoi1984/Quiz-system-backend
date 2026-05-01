@@ -17,6 +17,13 @@ function validateCreateSessionPayload(payload) {
     errors.push("max_participants must be a positive number");
   }
 
+  if (
+    payload?.join_type !== undefined &&
+    !['name', 'anonymous', 'name_email'].includes(payload.join_type)
+  ) {
+    errors.push("join_type must be one of: name, anonymous, name_email");
+  }
+
   return errors;
 }
 
@@ -65,6 +72,13 @@ function validateJoinSessionPayload(payload) {
     (typeof payload.nickname !== "string" || payload.nickname.trim().length === 0)
   ) {
     errors.push("nickname must be a non-empty string when provided");
+  }
+
+  if (
+    payload?.email !== null &&
+    (typeof payload.email !== "string" || payload.email.trim().length === 0)
+  ) {
+    errors.push("email must be a non-empty string when provided",payload.email);
   }
 
   if (

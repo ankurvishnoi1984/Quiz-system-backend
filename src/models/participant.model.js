@@ -21,8 +21,8 @@ const Participant = sequelize.define(
       type: DataTypes.STRING(80),
       allowNull: true
     },
-    email:{
-      type: DataTypes.STRING(80),
+    email: {
+      type: DataTypes.STRING(255),
       allowNull: true
     },
     avatar_url: {
