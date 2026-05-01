@@ -132,7 +132,8 @@ async function lookupByCode(req, res) {
           title: session.title,
           status: session.status,
           session_code: session.session_code,
-          department: session.department
+          department: session.department,
+          join_type:session.join_type
         }
       },
       "Session found",
