@@ -85,7 +85,7 @@ const Question = sequelize.define(
     is_live: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
-      defaultValue: false
+      defaultValue: true
     },
     display_order: {
       type: DataTypes.INTEGER,

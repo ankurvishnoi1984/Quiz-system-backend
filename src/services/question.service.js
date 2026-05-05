@@ -241,12 +241,6 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
     error.statusCode = 400;
     throw error;
   }
-  if (isLive) {
-    await Question.update(
-      { is_live: false },
-      { where: { session_id: question.session_id, is_live: true } }
-    );
-  }
   question.is_live = Boolean(isLive);
   await question.save();
   return question;
