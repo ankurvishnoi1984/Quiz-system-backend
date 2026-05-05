@@ -7,6 +7,7 @@ const {
   Department,
   Client
 } = require("../models");
+const { notifyLeaderboard } = require("./websocket.service");
 
 function assertStaffAccess(user, session) {
   if (user.role === "super_admin") return;
@@ -97,6 +98,27 @@ async function submitResponse({ participant, input }) {
       { score: created.points_earned },
       { where: { participant_id: participant.participant_id } }
     );
+  }
+
+  const session = await Session.findByPk(question.session_id, {
+    attributes: ["session_code"]
+  });
+
+  if (session?.session_code) {
+    const leaderboardData = await Participant.findAll({
+      where: { session_id: question.session_id },
+      attributes: ["participant_id", "nickname", "score"],
+      order: [["score", "DESC"]],
+      limit: 10
+    });
+
+    const leaderboard = leaderboardData.map(p => ({
+      participant_id: p.participant_id,
+      nickname: p.nickname,
+      score: p.score || 0
+    }));
+
+    notifyLeaderboard(session.session_code, leaderboard);
   }
 
   return created;
