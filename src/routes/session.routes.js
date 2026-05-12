@@ -33,6 +33,11 @@ router.put(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.update
 );
+router.post(
+  "/sessions/:sessionId/duplicate",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.duplicate
+);
 router.delete(
   "/sessions/:sessionId",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

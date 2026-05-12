@@ -1,4 +1,14 @@
-const { Session, Department, User, Participant, Client, Question, Response } = require("../models");
+const { sequelize } = require("../config/database");
+const {
+  Session,
+  Department,
+  User,
+  Participant,
+  Client,
+  Question,
+  QuestionOption,
+  Response
+} = require("../models");
 const { signAccessToken } = require("../utils/jwt");
 const { notifySessionProgress } = require("./websocket.service");
 
@@ -168,6 +178,126 @@ async function createSession({ deptId, input, user }) {
      leaderboard_enabled: input.leaderboard_enabled ?? true,
      qr_code_url: input.qr_code_url || null
    });
+}
+
+/**
+ * Creates a new draft session and copies all questions + options from the source session.
+ */
+async function duplicateSession({ sourceSessionId, user, input = {} }) {
+  const source = await getSessionOrThrow(sourceSessionId);
+  assertSessionWriteAccess(user, source);
+
+  let hostId = Number(source.host_id);
+  if (input.host_id != null && input.host_id !== "") {
+    hostId = Number(input.host_id);
+    if (Number.isNaN(hostId)) {
+      const error = new Error("host_id must be a number");
+      error.statusCode = 400;
+      throw error;
+    }
+    const host = await User.findByPk(hostId);
+    if (!host || !host.is_active) {
+      const error = new Error("Host user not found or inactive");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (Number(host.dept_id) !== Number(source.dept_id)) {
+      const error = new Error("Host must belong to the same department as the session");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const rawTitle =
+    typeof input.title === "string" && input.title.trim().length > 0
+      ? input.title.trim()
+      : `${source.title} (Copy)`;
+  const title = rawTitle.slice(0, 255);
+
+  const transaction = await sequelize.transaction();
+  try {
+    const sessionCode = await generateSessionCode();
+    const newSession = await Session.create(
+      {
+        dept_id: source.dept_id,
+        host_id: hostId,
+        title,
+        description: source.description,
+        session_code: sessionCode,
+        status: "draft",
+        join_type: source.join_type || "name",
+        max_participants: source.max_participants ?? 500,
+        show_results_to_participants: source.show_results_to_participants ?? true,
+        allow_late_join: source.allow_late_join ?? true,
+        leaderboard_enabled: source.leaderboard_enabled ?? true,
+        qr_code_url: null
+      },
+      { transaction }
+    );
+
+    const questions = await Question.findAll({
+      where: { session_id: sourceSessionId },
+      include: [{ model: QuestionOption }],
+      order: [
+        ["display_order", "ASC"],
+        [QuestionOption, "display_order", "ASC"]
+      ],
+      transaction
+    });
+
+    for (const q of questions) {
+      const newQuestion = await Question.create(
+        {
+          session_id: newSession.session_id,
+          dept_id: newSession.dept_id,
+          question_type: q.question_type,
+          question_text: q.question_text,
+          media_url: q.media_url,
+          media_type: q.media_type,
+          media_thumbnail_url: q.media_thumbnail_url,
+          is_quiz_mode: q.is_quiz_mode ?? false,
+          points_value: q.points_value ?? 10,
+          time_limit_seconds: q.time_limit_seconds,
+          allow_multiple_select: q.allow_multiple_select ?? false,
+          rating_min: q.rating_min ?? 1,
+          rating_max: q.rating_max ?? 5,
+          rating_min_label: q.rating_min_label,
+          rating_max_label: q.rating_max_label,
+          is_live: false,
+          display_order: q.display_order,
+          template_id: q.template_id || null
+        },
+        { transaction }
+      );
+
+      let rawOpts = q.QuestionOptions || q.question_options;
+      if (!rawOpts || rawOpts.length === 0) {
+        rawOpts = await QuestionOption.findAll({
+          where: { question_id: q.question_id },
+          order: [["display_order", "ASC"]],
+          transaction
+        });
+      }
+      if (rawOpts.length > 0) {
+        await QuestionOption.bulkCreate(
+          rawOpts.map((o, idx) => ({
+            question_id: newQuestion.question_id,
+            option_text: o.option_text,
+            media_url: o.media_url || null,
+            is_correct: o.is_correct ?? false,
+            display_order: o.display_order != null ? o.display_order : idx + 1
+          })),
+          { transaction }
+        );
+      }
+    }
+
+    await transaction.commit();
+    return getSessionOrThrow(newSession.session_id);
+  } catch (err) {
+    await transaction.rollback();
+    throw err;
+  }
 }
 
 async function getSessionById({ sessionId, user }) {
@@ -347,6 +477,7 @@ async function getSessionQr({ sessionId, user, baseUrl }) {
 module.exports = {
   listDepartmentSessions,
   createSession,
+  duplicateSession,
   getSessionById,
   updateSession,
   archiveSession,

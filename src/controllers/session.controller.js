@@ -2,6 +2,7 @@ const { successResponse, errorResponse } = require("../utils/response");
 const {
   listDepartmentSessions,
   createSession,
+  duplicateSession,
   getSessionById,
   updateSession,
   archiveSession,
@@ -169,6 +170,23 @@ async function joinByCode(req, res) {
   }
 }
 
+async function duplicate(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+    const session = await duplicateSession({
+      sourceSessionId: sessionId,
+      user: req.user,
+      input: req.body || {}
+    });
+    return successResponse(res, { session }, "Session duplicated successfully", 201);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function qr(req, res) {
   try {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
@@ -189,6 +207,7 @@ module.exports = {
   detail,
   update,
   remove,
+  duplicate,
   start: lifecycleAction("start"),
   pause: lifecycleAction("pause"),
   resume: lifecycleAction("resume"),
