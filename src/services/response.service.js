@@ -33,6 +33,10 @@ async function getSessionForAccess(sessionId) {
   return session;
 }
 
+function isQuestionTimed(question) {
+  return Number(question.time_limit_seconds) > 0;
+}
+
 async function submitResponse({ participant, input }) {
   const question = await Question.findByPk(Number(input.question_id), {
     include: [{ model: QuestionOption }]
@@ -54,13 +58,15 @@ async function submitResponse({ participant, input }) {
     throw error;
   }
 
+  const timed = isQuestionTimed(question);
+
   const existing = await Response.findOne({
     where: {
       question_id: question.question_id,
       participant_id: participant.participant_id
     }
   });
-  if (existing) {
+  if (existing && timed) {
     const error = new Error("Response already submitted for this question");
     error.statusCode = 409;
     throw error;
@@ -73,7 +79,7 @@ async function submitResponse({ participant, input }) {
     participant_id: participant.participant_id,
     option_id: input.option_id || null,
     text_response: input.text_response || null,
-    rating_value: input.rating_value || null,
+    rating_value: input.rating_value != null ? input.rating_value : null,
     ranking_order: input.ranking_order || null,
     response_time_ms: input.response_time_ms || null
   };
@@ -89,15 +95,35 @@ async function submitResponse({ participant, input }) {
       responsePayload.is_correct = Boolean(option.is_correct);
       responsePayload.points_earned = option.is_correct ? Number(question.points_value || 0) : 0;
     }
+  } else if (question.is_quiz_mode) {
+    responsePayload.is_correct = null;
+    responsePayload.points_earned = 0;
   }
 
-  const created = await Response.create(responsePayload);
+  let saved;
+  let created = false;
 
-  if (question.is_quiz_mode && created.points_earned > 0) {
-    await Participant.increment(
-      { score: created.points_earned },
-      { where: { participant_id: participant.participant_id } }
-    );
+  if (existing && !timed) {
+    const oldPoints = question.is_quiz_mode ? Number(existing.points_earned || 0) : 0;
+    const newPoints = question.is_quiz_mode ? Number(responsePayload.points_earned || 0) : 0;
+    await existing.update({
+      ...responsePayload,
+      submitted_at: new Date()
+    });
+    saved = existing;
+    const delta = newPoints - oldPoints;
+    if (question.is_quiz_mode && delta !== 0) {
+      await Participant.increment({ score: delta }, { where: { participant_id: participant.participant_id } });
+    }
+  } else {
+    created = true;
+    saved = await Response.create(responsePayload);
+    if (question.is_quiz_mode && Number(saved.points_earned || 0) > 0) {
+      await Participant.increment(
+        { score: saved.points_earned },
+        { where: { participant_id: participant.participant_id } }
+      );
+    }
   }
 
   const session = await Session.findByPk(question.session_id, {
@@ -121,7 +147,7 @@ async function submitResponse({ participant, input }) {
     notifyLeaderboard(session.session_code, leaderboard);
   }
 
-  return created;
+  return { response: saved, created };
 }
 
 async function getQuestionResults({ questionId, user }) {

@@ -17,7 +17,7 @@ async function submit(req, res) {
     if (errors.length > 0) {
       return errorResponse(res, "Validation failed", 400, errors);
     }
-    const response = await submitResponse({
+    const { response, created } = await submitResponse({
       participant: req.participant,
       input: req.body
     });
@@ -30,7 +30,9 @@ async function submit(req, res) {
       });
       notifySessionProgress(session.session_code, response.session_id).catch(() => {});
     }
-    return successResponse(res, { response }, "Response submitted", 201);
+    const statusCode = created ? 201 : 200;
+    const message = created ? "Response submitted" : "Response updated";
+    return successResponse(res, { response }, message, statusCode);
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);
   }

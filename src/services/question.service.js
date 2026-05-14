@@ -126,60 +126,100 @@ async function getQuestionById({ questionId, user }) {
 async function updateQuestion({ questionId, input, user }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
+  const isDraft = session.status === "draft";
 
-  /*if (session.status !== "draft") {
-    const error = new Error("Only draft-session questions can be updated");
-    error.statusCode = 400;
-    throw error;
-  }*/
+  if (isDraft) {
+    Object.assign(question, {
+      question_type:
+        input.question_type !== undefined ? input.question_type : question.question_type,
+      question_text:
+        input.question_text !== undefined ? input.question_text : question.question_text,
+      media_url: input.media_url !== undefined ? input.media_url : question.media_url,
+      media_type: input.media_type !== undefined ? input.media_type : question.media_type,
+      media_thumbnail_url:
+        input.media_thumbnail_url !== undefined
+          ? input.media_thumbnail_url
+          : question.media_thumbnail_url,
+      is_quiz_mode:
+        input.is_quiz_mode !== undefined ? Boolean(input.is_quiz_mode) : question.is_quiz_mode,
+      points_value: input.points_value !== undefined ? input.points_value : question.points_value,
+      time_limit_seconds:
+        input.time_limit_seconds !== undefined
+          ? input.time_limit_seconds
+          : question.time_limit_seconds,
+      allow_multiple_select:
+        input.allow_multiple_select !== undefined
+          ? Boolean(input.allow_multiple_select)
+          : question.allow_multiple_select,
+      rating_min: input.rating_min !== undefined ? input.rating_min : question.rating_min,
+      rating_max: input.rating_max !== undefined ? input.rating_max : question.rating_max,
+      rating_min_label:
+        input.rating_min_label !== undefined
+          ? input.rating_min_label
+          : question.rating_min_label,
+      rating_max_label:
+        input.rating_max_label !== undefined
+          ? input.rating_max_label
+          : question.rating_max_label
+    });
 
-  Object.assign(question, {
-    question_type:
-      input.question_type !== undefined ? input.question_type : question.question_type,
-    question_text:
-      input.question_text !== undefined ? input.question_text : question.question_text,
-    media_url: input.media_url !== undefined ? input.media_url : question.media_url,
-    media_type: input.media_type !== undefined ? input.media_type : question.media_type,
-    media_thumbnail_url:
-      input.media_thumbnail_url !== undefined
-        ? input.media_thumbnail_url
-        : question.media_thumbnail_url,
-    is_quiz_mode:
-      input.is_quiz_mode !== undefined ? Boolean(input.is_quiz_mode) : question.is_quiz_mode,
-    points_value: input.points_value !== undefined ? input.points_value : question.points_value,
-    time_limit_seconds:
-      input.time_limit_seconds !== undefined
-        ? input.time_limit_seconds
-        : question.time_limit_seconds,
-    allow_multiple_select:
-      input.allow_multiple_select !== undefined
-        ? Boolean(input.allow_multiple_select)
-        : question.allow_multiple_select,
-    rating_min: input.rating_min !== undefined ? input.rating_min : question.rating_min,
-    rating_max: input.rating_max !== undefined ? input.rating_max : question.rating_max,
-    rating_min_label:
-      input.rating_min_label !== undefined
-        ? input.rating_min_label
-        : question.rating_min_label,
-    rating_max_label:
-      input.rating_max_label !== undefined
-        ? input.rating_max_label
-        : question.rating_max_label
-  });
+    await question.save();
 
-  await question.save();
+    if (Array.isArray(input.options)) {
+      await QuestionOption.destroy({ where: { question_id: question.question_id } });
+      const optionsToCreate = input.options.map((option, idx) => ({
+        question_id: question.question_id,
+        option_text: option.option_text,
+        media_url: option.media_url || null,
+        is_correct: option.is_correct ?? false,
+        display_order: option.display_order || idx + 1
+      }));
+      if (optionsToCreate.length > 0) {
+        await QuestionOption.bulkCreate(optionsToCreate);
+      }
+    }
 
-  if (Array.isArray(input.options)) {
-    await QuestionOption.destroy({ where: { question_id: question.question_id } });
-    const optionsToCreate = input.options.map((option, idx) => ({
-      question_id: question.question_id,
-      option_text: option.option_text,
-      media_url: option.media_url || null,
-      is_correct: option.is_correct ?? false,
-      display_order: option.display_order || idx + 1
-    }));
-    if (optionsToCreate.length > 0) {
-      await QuestionOption.bulkCreate(optionsToCreate);
+    return getQuestionById({ questionId, user });
+  }
+
+  // Live / paused / completed / archived: only question text + option text; correctness is immutable
+  if (input.question_text !== undefined) {
+    question.question_text = input.question_text;
+    await question.save();
+  }
+
+  if (Array.isArray(input.options) && input.options.length > 0) {
+    const existing = await QuestionOption.findAll({
+      where: { question_id: question.question_id },
+      order: [
+        ["display_order", "ASC"],
+        ["option_id", "ASC"]
+      ]
+    });
+    if (input.options.length !== existing.length) {
+      const error = new Error("Cannot add or remove answer options while the session is not in draft");
+      error.statusCode = 400;
+      throw error;
+    }
+    for (let i = 0; i < existing.length; i += 1) {
+      const ex = existing[i];
+      const inc = input.options.find(
+        (o) => o && o.option_id != null && Number(o.option_id) === Number(ex.option_id)
+      );
+      if (!inc || typeof inc !== "object") {
+        const error = new Error(
+          "Each option must include option_id matching the existing answers when the session is not in draft"
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      if (Boolean(inc.is_correct) !== Boolean(ex.is_correct)) {
+        const error = new Error("Cannot change which option is correct after the session has gone live");
+        error.statusCode = 400;
+        throw error;
+      }
+      const nextText = inc.option_text !== undefined ? inc.option_text : ex.option_text;
+      await ex.update({ option_text: nextText });
     }
   }
 
