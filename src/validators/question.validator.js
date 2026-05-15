@@ -15,6 +15,17 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
+  if (payload?.question_type === "true_false") {
+    if (!Array.isArray(payload.options) || payload.options.length !== 2) {
+      errors.push("true_false must include exactly 2 options (True and False)");
+    } else if (payload.is_quiz_mode) {
+      const correctCount = payload.options.filter((o) => o && o.is_correct).length;
+      if (correctCount !== 1) {
+        errors.push("true_false must have exactly one correct option");
+      }
+    }
+  }
+
   return errors;
 }
 
