@@ -150,6 +150,26 @@ async function submitResponse({ participant, input }) {
   return { response: saved, created };
 }
 
+function aggregateWordCloudCounts(responses) {
+  const byKey = new Map();
+  for (const row of responses) {
+    if (!row.text_response) continue;
+    const parts = String(row.text_response).split(",");
+    for (const part of parts) {
+      const word = part.trim();
+      if (!word) continue;
+      const key = word.toLowerCase();
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byKey.set(key, { text: word, count: 1 });
+      }
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
+}
+
 async function getQuestionResults({ questionId, user }) {
   const question = await Question.findByPk(questionId, { include: [{ model: Session }] });
   if (!question) {
@@ -180,6 +200,8 @@ async function getQuestionResults({ questionId, user }) {
     question_type: question.question_type,
     total_responses: total,
     by_option: byOption,
+    word_counts:
+      question.question_type === "word_cloud" ? aggregateWordCloudCounts(responses) : null,
     average_rating:
       question.question_type === "rating" && total > 0
         ? Number(
