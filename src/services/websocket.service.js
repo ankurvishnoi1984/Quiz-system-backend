@@ -1,59 +1,179 @@
 const { WebSocketServer } = require("ws");
-const jwt = require("jsonwebtoken");
-const env = require("../config/env");
+const { verifyAccessToken } = require("../utils/jwt");
 
 const activeConnections = new Map();
+
+const WS_LOG = process.env.WS_DEBUG === "true" || process.env.NODE_ENV !== "production";
+
+function wsLog(level, message, meta = {}) {
+  if (!WS_LOG && level === "debug") return;
+  const line = meta && Object.keys(meta).length ? `${message} ${JSON.stringify(meta)}` : message;
+  if (level === "error") {
+    console.error("[WS]", line);
+  } else if (level === "warn") {
+    console.warn("[WS]", line);
+  } else {
+    console.log("[WS]", line);
+  }
+}
+
+function maskToken(token) {
+  if (!token) return null;
+  const s = String(token);
+  return `${s.slice(0, 12)}…(${s.length} chars)`;
+}
 
 function setupWebSocketServer(server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", (ws, req) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const token = url.searchParams.get("token");
-    const sessionCode = url.searchParams.get("session");
-    const role = url.searchParams.get("role");
+    const remote = req.socket?.remoteAddress || "unknown";
+    let sessionCode = null;
+    let role = null;
 
-    if (!sessionCode) {
-      ws.close(4000, "Session code required");
-      return;
-    }
+    try {
+      const host = req.headers.host || "localhost";
+      const url = new URL(req.url, `http://${host}`);
+      const token = url.searchParams.get("token");
+      sessionCode = url.searchParams.get("session");
+      role = url.searchParams.get("role") || "participant";
 
-    let decoded = null;
-    if (token) {
-      try {
-        decoded = jwt.verify(token, env.jwtSecret);
-      } catch {
-        // Continue without auth for anon participants
+      wsLog("info", "handshake_start", {
+        remote,
+        session: sessionCode,
+        role,
+        token: maskToken(token),
+        upgrade: req.headers.upgrade,
+        connection: req.headers.connection
+      });
+
+      if (!sessionCode) {
+        wsLog("warn", "handshake_rejected", { remote, reason: "missing_session_code", code: 4000 });
+        ws.close(4000, "Session code required");
+        return;
       }
-    }
 
-    const connectionKey = `${sessionCode}:${role || "participant"}`;
-    if (!activeConnections.has(connectionKey)) {
-      activeConnections.set(connectionKey, new Set());
-    }
-    activeConnections.get(connectionKey).add(ws);
+      let decoded = null;
+      let authStatus = "anonymous";
 
-    ws.sessionCode = sessionCode;
-    ws.role = role || "participant";
-    ws.user = decoded;
-
-    ws.on("close", () => {
-      const connSet = activeConnections.get(connectionKey);
-      if (connSet) {
-        connSet.delete(ws);
-        if (connSet.size === 0) {
-          activeConnections.delete(connectionKey);
+      if (token) {
+        try {
+          decoded = verifyAccessToken(token);
+          if (decoded.role === "participant") {
+            authStatus = "participant_ok";
+            wsLog("info", "auth_ok", {
+              session: sessionCode,
+              role,
+              participant_id: decoded.participant_id,
+              session_id: decoded.session_id,
+              exp: decoded.exp
+            });
+          } else if (
+            decoded.role === "host" ||
+            decoded.role === "super_admin" ||
+            decoded.role === "client_admin" ||
+            decoded.role === "dept_admin"
+          ) {
+            authStatus = "staff_ok";
+            wsLog("info", "auth_ok", {
+              session: sessionCode,
+              role: decoded.role,
+              user_id: decoded.user_id,
+              exp: decoded.exp
+            });
+          } else {
+            authStatus = "token_unknown_role";
+            wsLog("warn", "auth_token_unknown_role", {
+              session: sessionCode,
+              role: decoded.role
+            });
+          }
+        } catch (err) {
+          authStatus =
+            err.name === "TokenExpiredError"
+              ? "token_expired"
+              : err.name === "JsonWebTokenError"
+                ? "token_invalid"
+                : "token_error";
+          wsLog("warn", "auth_token_rejected", {
+            session: sessionCode,
+            role,
+            token: maskToken(token),
+            error_name: err.name,
+            error_message: err.message
+          });
+          // Existing flow: continue without decoded user (do not hard-close)
         }
+      } else {
+        wsLog("info", "auth_no_token", { session: sessionCode, role });
       }
-    });
 
-    ws.on("error", (error) => {
-      console.error("WebSocket error:", error.message);
-    });
+      const connectionKey = `${sessionCode}:${role}`;
+      if (!activeConnections.has(connectionKey)) {
+        activeConnections.set(connectionKey, new Set());
+      }
+      activeConnections.get(connectionKey).add(ws);
 
-    send(ws, { type: "connected", session: sessionCode, role: ws.role });
+      ws.sessionCode = sessionCode;
+      ws.role = role;
+      ws.user = decoded;
+      ws.authStatus = authStatus;
+
+      ws.on("close", (code, reason) => {
+        wsLog("info", "connection_closed", {
+          session: sessionCode,
+          role,
+          authStatus,
+          code,
+          reason: reason?.toString() || "(none)"
+        });
+        const connSet = activeConnections.get(connectionKey);
+        if (connSet) {
+          connSet.delete(ws);
+          if (connSet.size === 0) {
+            activeConnections.delete(connectionKey);
+          }
+        }
+      });
+
+      ws.on("error", (error) => {
+        wsLog("error", "socket_error", {
+          session: sessionCode,
+          role,
+          message: error.message
+        });
+      });
+
+      send(ws, {
+        type: "connected",
+        session: sessionCode,
+        role: ws.role,
+        auth_status: authStatus
+      });
+
+      wsLog("info", "handshake_complete", {
+        session: sessionCode,
+        role,
+        authStatus,
+        activeInBucket: activeConnections.get(connectionKey)?.size
+      });
+    } catch (error) {
+      wsLog("error", "handshake_exception", {
+        remote,
+        session: sessionCode,
+        role,
+        message: error.message,
+        stack: error.stack
+      });
+      try {
+        ws.close(1011, "Handshake failed");
+      } catch {
+        // ignore
+      }
+    }
   });
 
+  wsLog("info", "server_listening", { path: "/ws" });
   return wss;
 }
 
