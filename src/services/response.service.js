@@ -310,7 +310,7 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
   }
 
   return Question.findAll({
-    where: { session_id: sessionId },
+    where: { session_id: sessionId, is_live: true },
     include: [{ model: QuestionOption }],
     order: [
       ["display_order", "ASC"],
