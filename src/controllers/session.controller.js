@@ -187,9 +187,20 @@ async function duplicate(req, res) {
   }
 }
 
+function getPublicAppBaseUrl(req) {
+  const configured =
+    process.env.FRONTEND_PUBLIC_URL ||
+    process.env.PUBLIC_APP_URL ||
+    process.env.VITE_PUBLIC_APP_URL;
+  if (configured) {
+    return String(configured).replace(/\/+$/, "");
+  }
+  return `${req.protocol}://${req.get("host")}`;
+}
+
 async function qr(req, res) {
   try {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = getPublicAppBaseUrl(req);
     const data = await getSessionQr({
       sessionId: Number(req.params.sessionId),
       user: req.user,
