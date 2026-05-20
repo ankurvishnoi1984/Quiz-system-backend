@@ -6,14 +6,16 @@ const {
   updateQuestion,
   deleteQuestion,
   reorderQuestions,
-  setQuestionLiveState
+  setQuestionLiveState,
+  setQuestionAnswerRevealed,
+  getCorrectOptionIds
 } = require("../services/question.service");
 const {
   validateCreateQuestionPayload,
   validateUpdateQuestionPayload,
   validateReorderPayload
 } = require("../validators/question.validator");
-const { notifyQuestionChange } = require("../services/websocket.service");
+const { notifyQuestionChange, notifyAnswerRevealed } = require("../services/websocket.service");
 const { Session } = require("../models");
 
 async function listBySession(req, res) {
@@ -171,6 +173,38 @@ function setLiveState(isLive) {
   };
 }
 
+function setAnswerRevealedState(revealed) {
+  return async (req, res) => {
+    try {
+      const question = await setQuestionAnswerRevealed({
+        questionId: Number(req.params.questionId),
+        user: req.user,
+        revealed
+      });
+      const session = await Session.findByPk(question.session_id, {
+        attributes: ["session_code"]
+      });
+      if (session?.session_code) {
+        const correctOptionIds = revealed ? getCorrectOptionIds(question) : [];
+        notifyAnswerRevealed(
+          session.session_code,
+          question.question_id,
+          revealed,
+          correctOptionIds
+        );
+      }
+      return successResponse(
+        res,
+        { question },
+        revealed ? "Answer revealed to participants" : "Answer hidden from participants",
+        200
+      );
+    } catch (err) {
+      return errorResponse(res, err.message, err.statusCode || 500);
+    }
+  };
+}
+
 module.exports = {
   listBySession,
   listBySessionPublic,
@@ -180,5 +214,7 @@ module.exports = {
   remove,
   reorder,
   activate: setLiveState(true),
-  deactivate: setLiveState(false)
+  deactivate: setLiveState(false),
+  revealAnswer: setAnswerRevealedState(true),
+  hideAnswer: setAnswerRevealedState(false)
 };

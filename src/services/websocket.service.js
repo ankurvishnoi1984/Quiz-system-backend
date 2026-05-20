@@ -319,6 +319,15 @@ function notifyQuestionChange(sessionCode, currentQuestion, isLive) {
   });
 }
 
+function notifyAnswerRevealed(sessionCode, questionId, answerRevealed, correctOptionIds = []) {
+  broadcastToSession(sessionCode, {
+    type: "answer_revealed",
+    question_id: Number(questionId),
+    answer_revealed: Boolean(answerRevealed),
+    correct_option_ids: (correctOptionIds || []).map(Number)
+  });
+}
+
 function notifyLeaderboard(sessionCode, leaderboard) {
   broadcastToSession(sessionCode, {
     type: "leaderboard_update",
@@ -352,6 +361,7 @@ module.exports = {
   broadcastResponse,
   notifySessionUpdate,
   notifyQuestionChange,
+  notifyAnswerRevealed,
   notifyLeaderboard,
   notifySessionProgress,
   getLiveResults,

@@ -48,5 +48,15 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   questionController.deactivate
 );
+router.post(
+  "/questions/:questionId/reveal-answer",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.revealAnswer
+);
+router.post(
+  "/questions/:questionId/hide-answer",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.hideAnswer
+);
 
 module.exports = router;

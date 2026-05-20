@@ -7,6 +7,7 @@ const {
   Department,
   Client
 } = require("../models");
+const { formatQuestionForParticipant } = require("./question.service");
 const { notifyLeaderboard } = require("./websocket.service");
 
 function assertStaffAccess(user, session) {
@@ -309,7 +310,7 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
     throw error;
   }
 
-  return Question.findAll({
+  const questions = await Question.findAll({
     where: { session_id: sessionId, is_live: true },
     include: [{ model: QuestionOption }],
     order: [
@@ -317,6 +318,8 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
       [QuestionOption, "display_order", "ASC"]
     ]
   });
+
+  return questions.map(formatQuestionForParticipant);
 }
 
 module.exports = {

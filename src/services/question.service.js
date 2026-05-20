@@ -286,6 +286,72 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
   return question;
 }
 
+function getQuestionOptions(question) {
+  return question.QuestionOptions || question.question_options || [];
+}
+
+function getCorrectOptionIds(question) {
+  return getQuestionOptions(question)
+    .filter((option) => Boolean(option.is_correct))
+    .map((option) => Number(option.option_id));
+}
+
+function formatQuestionForParticipant(question) {
+  const plain = question.toJSON ? question.toJSON() : { ...question };
+  const revealed = Boolean(plain.answer_revealed);
+  const rawOptions = plain.QuestionOptions || plain.question_options || [];
+
+  const question_options = rawOptions.map((option) => {
+    const row = {
+      option_id: option.option_id,
+      option_text: option.option_text,
+      media_url: option.media_url || null,
+      display_order: option.display_order
+    };
+    if (revealed) {
+      row.is_correct = Boolean(option.is_correct);
+    }
+    return row;
+  });
+
+  return {
+    ...plain,
+    QuestionOptions: undefined,
+    question_options,
+    answer_revealed: revealed
+  };
+}
+
+async function setQuestionAnswerRevealed({ questionId, user, revealed }) {
+  const question = await getQuestionById({ questionId, user });
+  const session = await getSessionForQuestionFlow(question.session_id);
+
+  if (!["mcq", "true_false"].includes(question.question_type)) {
+    const error = new Error("Answers can be revealed only for multiple choice or true/false questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!question.is_quiz_mode) {
+    const error = new Error("Answers can be revealed only for quiz mode questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Answers can be revealed only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  question.answer_revealed = Boolean(revealed);
+  await question.save();
+
+  return Question.findByPk(question.question_id, {
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 module.exports = {
   listSessionQuestions,
   createQuestion,
@@ -293,5 +359,8 @@ module.exports = {
   updateQuestion,
   deleteQuestion,
   reorderQuestions,
-  setQuestionLiveState
+  setQuestionLiveState,
+  setQuestionAnswerRevealed,
+  getCorrectOptionIds,
+  formatQuestionForParticipant
 };
