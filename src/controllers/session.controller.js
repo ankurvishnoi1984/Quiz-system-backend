@@ -17,6 +17,7 @@ const {
   validateJoinSessionPayload
 } = require("../validators/session.validator");
 const { notifySessionUpdate } = require("../services/websocket.service");
+const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
 async function listByDepartment(req, res) {
   try {
@@ -187,20 +188,9 @@ async function duplicate(req, res) {
   }
 }
 
-function getPublicAppBaseUrl(req) {
-  const configured =
-    process.env.FRONTEND_PUBLIC_URL ||
-    process.env.PUBLIC_APP_URL ||
-    process.env.VITE_PUBLIC_APP_URL;
-  if (configured) {
-    return String(configured).replace(/\/+$/, "");
-  }
-  return `${req.protocol}://${req.get("host")}`;
-}
-
 async function qr(req, res) {
   try {
-    const baseUrl = getPublicAppBaseUrl(req);
+    const baseUrl = getFrontendPublicUrl(req);
     const data = await getSessionQr({
       sessionId: Number(req.params.sessionId),
       user: req.user,

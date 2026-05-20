@@ -3,6 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const apiRoutes = require("./routes");
 const { errorResponse } = require("./utils/response");
+const { getFrontendPublicUrl, buildSessionJoinPath } = require("./config/publicAppUrl");
 
 const app = express();
 
@@ -11,6 +12,23 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static("uploads"));
+
+/**
+ * Participant join links must open the React app, not the JSON API.
+ * Redirect /join/:code (e.g. from old QR codes pointing at the API host) to the frontend.
+ */
+app.get("/join/:code", (req, res) => {
+  const frontendOrigin = getFrontendPublicUrl(req);
+  const path = buildSessionJoinPath(req.params.code);
+  if (!frontendOrigin) {
+    return errorResponse(
+      res,
+      "FRONTEND_PUBLIC_URL is not configured on the server",
+      503
+    );
+  }
+  return res.redirect(302, `${frontendOrigin}${path}`);
+});
 
 app.use("/api/v1", apiRoutes);
 
