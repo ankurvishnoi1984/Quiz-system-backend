@@ -17,6 +17,18 @@ app.use("/uploads", express.static("uploads"));
  * Participant join links must open the React app, not the JSON API.
  * Redirect /join/:code (e.g. from old QR codes pointing at the API host) to the frontend.
  */
+app.get("/join", (req, res) => {
+  const frontendOrigin = getFrontendPublicUrl(req);
+  if (!frontendOrigin) {
+    return errorResponse(
+      res,
+      "FRONTEND_PUBLIC_URL is not configured on the server",
+      503
+    );
+  }
+  return res.redirect(302, `${frontendOrigin}/join`);
+});
+
 app.get("/join/:code", (req, res) => {
   const frontendOrigin = getFrontendPublicUrl(req);
   const path = buildSessionJoinPath(req.params.code);
