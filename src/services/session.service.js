@@ -176,6 +176,7 @@ async function createSession({ deptId, input, user }) {
      show_results_to_participants: input.show_results_to_participants ?? true,
      allow_late_join: input.allow_late_join ?? true,
      leaderboard_enabled: input.leaderboard_enabled ?? true,
+     show_question_leaderboard: input.show_question_leaderboard ?? false,
      qr_code_url: input.qr_code_url || null
    });
 }
@@ -230,6 +231,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         show_results_to_participants: source.show_results_to_participants ?? true,
         allow_late_join: source.allow_late_join ?? true,
         leaderboard_enabled: source.leaderboard_enabled ?? true,
+        show_question_leaderboard: source.show_question_leaderboard ?? false,
         qr_code_url: null
       },
       { transaction }
@@ -264,6 +266,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
           rating_min_label: q.rating_min_label,
           rating_max_label: q.rating_max_label,
           is_live: false,
+          show_leaderboard: false,
           display_order: q.display_order,
           template_id: q.template_id || null
         },
@@ -310,10 +313,18 @@ async function updateSession({ sessionId, input, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
 
+  const liveSettingsOnly = ["leaderboard_enabled"];
+  const inputKeys = Object.keys(input || {});
+
   if (session.status !== "draft") {
-    const error = new Error("Only draft sessions can be updated");
-    error.statusCode = 400;
-    throw error;
+    const disallowed = inputKeys.filter((key) => !liveSettingsOnly.includes(key));
+    if (disallowed.length > 0) {
+      const error = new Error(
+        "Only leaderboard settings can be updated while the session is live"
+      );
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   Object.assign(session, {
@@ -338,7 +349,11 @@ async function updateSession({ sessionId, input, user }) {
     leaderboard_enabled:
       input.leaderboard_enabled !== undefined
         ? Boolean(input.leaderboard_enabled)
-        : session.leaderboard_enabled
+        : session.leaderboard_enabled,
+    show_question_leaderboard:
+      input.show_question_leaderboard !== undefined
+        ? Boolean(input.show_question_leaderboard)
+        : session.show_question_leaderboard
   });
 
   await session.save();

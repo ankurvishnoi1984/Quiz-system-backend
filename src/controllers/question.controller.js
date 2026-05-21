@@ -8,6 +8,7 @@ const {
   reorderQuestions,
   setQuestionLiveState,
   setQuestionAnswerRevealed,
+  setQuestionLeaderboardVisibility,
   getCorrectOptionIds
 } = require("../services/question.service");
 const {
@@ -15,8 +16,14 @@ const {
   validateUpdateQuestionPayload,
   validateReorderPayload
 } = require("../validators/question.validator");
-const { notifyQuestionChange, notifyAnswerRevealed } = require("../services/websocket.service");
+const {
+  notifyQuestionChange,
+  notifyAnswerRevealed,
+  notifyQuestionLeaderboardVisibility,
+  notifyLeaderboard
+} = require("../services/websocket.service");
 const { Session } = require("../models");
+const { buildQuestionLeaderboard } = require("../services/response.service");
 
 async function listBySession(req, res) {
   try {
@@ -205,6 +212,48 @@ function setAnswerRevealedState(revealed) {
   };
 }
 
+function setLeaderboardVisibilityState(visible) {
+  return async (req, res) => {
+    try {
+      const question = await setQuestionLeaderboardVisibility({
+        questionId: Number(req.params.questionId),
+        user: req.user,
+        visible
+      });
+      const session = await Session.findByPk(question.session_id, {
+        attributes: ["session_code"]
+      });
+      if (session?.session_code) {
+        notifyQuestionLeaderboardVisibility(
+          session.session_code,
+          question.question_id,
+          visible
+        );
+        if (visible) {
+          const questionLeaderboard = await buildQuestionLeaderboard(question.question_id);
+          if (questionLeaderboard.length) {
+            notifyLeaderboard(session.session_code, {
+              leaderboard: [],
+              question_id: question.question_id,
+              question_leaderboard: questionLeaderboard
+            });
+          }
+        }
+      }
+      return successResponse(
+        res,
+        { question },
+        visible
+          ? "Question leaderboard visible to participants"
+          : "Question leaderboard hidden from participants",
+        200
+      );
+    } catch (err) {
+      return errorResponse(res, err.message, err.statusCode || 500);
+    }
+  };
+}
+
 module.exports = {
   listBySession,
   listBySessionPublic,
@@ -216,5 +265,7 @@ module.exports = {
   activate: setLiveState(true),
   deactivate: setLiveState(false),
   revealAnswer: setAnswerRevealedState(true),
-  hideAnswer: setAnswerRevealedState(false)
+  hideAnswer: setAnswerRevealedState(false),
+  showLeaderboard: setLeaderboardVisibilityState(true),
+  hideLeaderboard: setLeaderboardVisibilityState(false)
 };

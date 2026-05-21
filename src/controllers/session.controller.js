@@ -16,7 +16,10 @@ const {
   validateUpdateSessionPayload,
   validateJoinSessionPayload
 } = require("../validators/session.validator");
-const { notifySessionUpdate } = require("../services/websocket.service");
+const {
+  notifySessionUpdate,
+  notifySessionSettings
+} = require("../services/websocket.service");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
 async function listByDepartment(req, res) {
@@ -74,6 +77,12 @@ async function update(req, res) {
       input: req.body,
       user: req.user
     });
+    if (session.session_code) {
+      notifySessionSettings(session.session_code, {
+        leaderboard_enabled: session.leaderboard_enabled,
+        show_question_leaderboard: session.show_question_leaderboard
+      });
+    }
     return successResponse(res, { session }, "Session updated", 200);
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);
@@ -135,7 +144,9 @@ async function lookupByCode(req, res) {
           status: session.status,
           session_code: session.session_code,
           department: session.department,
-          join_type:session.join_type
+          join_type: session.join_type,
+          leaderboard_enabled: Boolean(session.leaderboard_enabled),
+          show_question_leaderboard: Boolean(session.show_question_leaderboard)
         }
       },
       "Session found",

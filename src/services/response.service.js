@@ -10,6 +10,73 @@ const {
 const { formatQuestionForParticipant } = require("./question.service");
 const { notifyLeaderboard } = require("./websocket.service");
 
+function participantDisplayName(participant, participantId) {
+  const p = participant?.participant ?? participant?.Participant ?? participant;
+  if (!p || typeof p !== "object") {
+    return `Participant ${participantId}`;
+  }
+  if (p.is_anonymous) {
+    return "Anonymous";
+  }
+  const nickname = String(p.nickname || "").trim();
+  if (nickname) return nickname;
+  const email = String(p.email || "").trim();
+  if (email) return email;
+  return `Participant ${participantId}`;
+}
+
+function toLeaderboardEntry(participantId, displayName, score) {
+  return {
+    participant_id: participantId,
+    nickname: displayName,
+    name: displayName,
+    score
+  };
+}
+
+async function buildSessionLeaderboard(sessionId, limit = 10) {
+  const rows = await Participant.findAll({
+    where: { session_id: sessionId },
+    attributes: ["participant_id", "nickname", "email", "is_anonymous", "score"],
+    order: [["score", "DESC"]],
+    limit
+  });
+  return rows.map((p) =>
+    toLeaderboardEntry(
+      p.participant_id,
+      participantDisplayName(p, p.participant_id),
+      p.score || 0
+    )
+  );
+}
+
+async function buildQuestionLeaderboard(questionId, limit = 10) {
+  const rows = await Response.findAll({
+    where: { question_id: questionId },
+    include: [
+      {
+        model: Participant,
+        attributes: ["participant_id", "nickname", "email", "is_anonymous"]
+      }
+    ],
+    order: [["points_earned", "DESC"], ["submitted_at", "ASC"]],
+    limit: 50
+  });
+  const byParticipant = new Map();
+  rows.forEach((row) => {
+    const pid = row.participant_id;
+    const points = Number(row.points_earned || 0);
+    const displayName = participantDisplayName(row, pid);
+    const existing = byParticipant.get(pid);
+    if (!existing || points > existing.score) {
+      byParticipant.set(pid, toLeaderboardEntry(pid, displayName, points));
+    }
+  });
+  return Array.from(byParticipant.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
 function assertStaffAccess(user, session) {
   if (user.role === "super_admin") return;
   if (user.role === "client_admin" && Number(user.client_id) === Number(session.department.client_id)) {
@@ -128,24 +195,27 @@ async function submitResponse({ participant, input }) {
   }
 
   const session = await Session.findByPk(question.session_id, {
-    attributes: ["session_code"]
+    attributes: ["session_code", "leaderboard_enabled"]
   });
 
   if (session?.session_code) {
-    const leaderboardData = await Participant.findAll({
-      where: { session_id: question.session_id },
-      attributes: ["participant_id", "nickname", "score"],
-      order: [["score", "DESC"]],
-      limit: 10
-    });
+    const payload = {
+      leaderboard: [],
+      question_id: question.question_id,
+      question_leaderboard: null
+    };
 
-    const leaderboard = leaderboardData.map(p => ({
-      participant_id: p.participant_id,
-      nickname: p.nickname,
-      score: p.score || 0
-    }));
+    if (session.leaderboard_enabled) {
+      payload.leaderboard = await buildSessionLeaderboard(question.session_id);
+    }
 
-    notifyLeaderboard(session.session_code, leaderboard);
+    if (question.show_leaderboard && question.is_quiz_mode) {
+      payload.question_leaderboard = await buildQuestionLeaderboard(question.question_id);
+    }
+
+    if (payload.leaderboard.length || payload.question_leaderboard?.length) {
+      notifyLeaderboard(session.session_code, payload);
+    }
   }
 
   return { response: saved, created };
@@ -328,5 +398,7 @@ module.exports = {
   getSessionResponses,
   getSessionSummary,
   exportSessionResponsesCsv,
-  listParticipantQuestionsService
+  listParticipantQuestionsService,
+  buildQuestionLeaderboard,
+  buildSessionLeaderboard
 };

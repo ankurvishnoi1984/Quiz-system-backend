@@ -58,5 +58,15 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   questionController.hideAnswer
 );
+router.post(
+  "/questions/:questionId/show-leaderboard",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.showLeaderboard
+);
+router.post(
+  "/questions/:questionId/hide-leaderboard",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.hideLeaderboard
+);
 
 module.exports = router;

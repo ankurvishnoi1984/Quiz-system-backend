@@ -328,10 +328,32 @@ function notifyAnswerRevealed(sessionCode, questionId, answerRevealed, correctOp
   });
 }
 
-function notifyLeaderboard(sessionCode, leaderboard) {
+function notifyQuestionLeaderboardVisibility(sessionCode, questionId, visible) {
+  broadcastToSession(sessionCode, {
+    type: "question_leaderboard_visibility",
+    question_id: Number(questionId),
+    show_leaderboard: Boolean(visible)
+  });
+}
+
+function notifyLeaderboard(sessionCode, payload) {
+  const data =
+    typeof payload === "object" && payload !== null && !Array.isArray(payload)
+      ? payload
+      : { leaderboard: payload };
   broadcastToSession(sessionCode, {
     type: "leaderboard_update",
-    leaderboard
+    leaderboard: data.leaderboard || [],
+    question_id: data.question_id ?? null,
+    question_leaderboard: data.question_leaderboard || null
+  });
+}
+
+function notifySessionSettings(sessionCode, settings) {
+  broadcastToSession(sessionCode, {
+    type: "session_settings_updated",
+    leaderboard_enabled: Boolean(settings.leaderboard_enabled),
+    show_question_leaderboard: Boolean(settings.show_question_leaderboard)
   });
 }
 
@@ -362,7 +384,9 @@ module.exports = {
   notifySessionUpdate,
   notifyQuestionChange,
   notifyAnswerRevealed,
+  notifyQuestionLeaderboardVisibility,
   notifyLeaderboard,
+  notifySessionSettings,
   notifySessionProgress,
   getLiveResults,
   getSessionProgress,

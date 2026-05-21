@@ -90,6 +90,7 @@ async function createQuestion({ sessionId, input, user }) {
     rating_min_label: input.rating_min_label || null,
     rating_max_label: input.rating_max_label || null,
     is_live: false,
+    show_leaderboard: false,
     display_order: input.display_order || nextOrder
   });
 
@@ -301,24 +302,26 @@ function formatQuestionForParticipant(question) {
   const revealed = Boolean(plain.answer_revealed);
   const rawOptions = plain.QuestionOptions || plain.question_options || [];
 
-  const question_options = rawOptions.map((option) => {
-    const row = {
-      option_id: option.option_id,
-      option_text: option.option_text,
-      media_url: option.media_url || null,
-      display_order: option.display_order
-    };
-    if (revealed) {
-      row.is_correct = Boolean(option.is_correct);
-    }
-    return row;
-  });
+  const question_options = rawOptions.map((option) => ({
+    option_id: option.option_id,
+    option_text: option.option_text,
+    media_url: option.media_url || null,
+    display_order: option.display_order
+  }));
+
+  const correct_option_ids = revealed
+    ? getQuestionOptions(plain)
+        .filter((option) => Boolean(option.is_correct))
+        .map((option) => Number(option.option_id))
+    : [];
 
   return {
     ...plain,
     QuestionOptions: undefined,
     question_options,
-    answer_revealed: revealed
+    answer_revealed: revealed,
+    correct_option_ids,
+    show_leaderboard: Boolean(plain.show_leaderboard)
   };
 }
 
@@ -352,6 +355,30 @@ async function setQuestionAnswerRevealed({ questionId, user, revealed }) {
   });
 }
 
+async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
+  const question = await getQuestionById({ questionId, user });
+  const session = await getSessionForQuestionFlow(question.session_id);
+
+  if (!question.is_quiz_mode) {
+    const error = new Error("Leaderboard can be shown only for quiz mode questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Leaderboard visibility can be changed only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  question.show_leaderboard = Boolean(visible);
+  await question.save();
+
+  return Question.findByPk(question.question_id, {
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 module.exports = {
   listSessionQuestions,
   createQuestion,
@@ -361,6 +388,7 @@ module.exports = {
   reorderQuestions,
   setQuestionLiveState,
   setQuestionAnswerRevealed,
+  setQuestionLeaderboardVisibility,
   getCorrectOptionIds,
   formatQuestionForParticipant
 };

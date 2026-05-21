@@ -92,6 +92,11 @@ const Question = sequelize.define(
       allowNull: false,
       defaultValue: false
     },
+    show_leaderboard: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     display_order: {
       type: DataTypes.INTEGER,
       allowNull: false

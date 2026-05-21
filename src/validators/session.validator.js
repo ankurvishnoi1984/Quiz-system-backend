@@ -36,7 +36,8 @@ function validateUpdateSessionPayload(payload) {
     "max_participants",
     "show_results_to_participants",
     "allow_late_join",
-    "leaderboard_enabled"
+    "leaderboard_enabled",
+    "show_question_leaderboard"
   ];
 
   if (!payload || typeof payload !== "object") {
