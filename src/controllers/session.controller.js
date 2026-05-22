@@ -20,6 +20,7 @@ const {
   notifySessionUpdate,
   notifySessionSettings
 } = require("../services/websocket.service");
+const { buildSessionLeaderboard } = require("../services/response.service");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
 async function listByDepartment(req, res) {
@@ -117,7 +118,13 @@ function lifecycleAction(action) {
         action
       });
       if (session?.session_code) {
-        notifySessionUpdate(session.session_code, session.status);
+        (async () => {
+          const extra = {};
+          if (action === "end" && session.leaderboard_enabled) {
+            extra.leaderboard = await buildSessionLeaderboard(session.session_id);
+          }
+          notifySessionUpdate(session.session_code, session.status, extra);
+        })().catch(() => {});
       }
       return successResponse(
         res,

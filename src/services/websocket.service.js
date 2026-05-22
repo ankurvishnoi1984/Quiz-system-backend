@@ -304,10 +304,11 @@ async function getSessionProgress(sessionId) {
   };
 }
 
-function notifySessionUpdate(sessionCode, status) {
+function notifySessionUpdate(sessionCode, status, extra = {}) {
   broadcastToSession(sessionCode, {
     type: "session_updated",
-    status
+    status,
+    ...extra
   });
 }
 

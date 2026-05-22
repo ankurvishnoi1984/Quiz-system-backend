@@ -392,6 +392,26 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
   return questions.map(formatQuestionForParticipant);
 }
 
+async function getParticipantSessionLeaderboard({ sessionId, participant }) {
+  const session = await Session.findByPk(sessionId, {
+    attributes: ["session_id", "leaderboard_enabled"]
+  });
+  if (!session) {
+    const error = new Error("Session not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (Number(participant.session_id) !== Number(sessionId)) {
+    const error = new Error("Not allowed for this session");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (!session.leaderboard_enabled) {
+    return [];
+  }
+  return buildSessionLeaderboard(sessionId);
+}
+
 module.exports = {
   submitResponse,
   getQuestionResults,
@@ -399,6 +419,7 @@ module.exports = {
   getSessionSummary,
   exportSessionResponsesCsv,
   listParticipantQuestionsService,
+  getParticipantSessionLeaderboard,
   buildQuestionLeaderboard,
   buildSessionLeaderboard
 };

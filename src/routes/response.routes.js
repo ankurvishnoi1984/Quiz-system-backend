@@ -8,6 +8,7 @@ const qaAccessMiddleware = require("../middlewares/qa-access.middleware");
 const router = express.Router();
 
 router.get("/sessions/:sessionId/participantQuestions",participantAuthMiddleware, responseController.listParticipantQuestions);
+router.get("/sessions/:sessionId/leaderboard", participantAuthMiddleware, responseController.participantSessionLeaderboard);
 router.post("/responses/submit", participantAuthMiddleware, responseController.submit);
 
 // Restrict staff auth to response reporting endpoints only.
