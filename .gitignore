@@ -9,3 +9,4 @@ yarn-error.log*
 *.docx
 quiz_db.sql
 .env
+*.zip

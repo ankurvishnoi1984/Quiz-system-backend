@@ -134,7 +134,7 @@ async function submitResponse({ participant, input }) {
       participant_id: participant.participant_id
     }
   });
-  if (existing && timed) {
+  if (existing && timed && !question.open_for_reattempt) {
     const error = new Error("Response already submitted for this question");
     error.statusCode = 409;
     throw error;
@@ -171,7 +171,7 @@ async function submitResponse({ participant, input }) {
   let saved;
   let created = false;
 
-  if (existing && !timed) {
+  if (existing && (!timed || question.open_for_reattempt)) {
     const oldPoints = question.is_quiz_mode ? Number(existing.points_earned || 0) : 0;
     const newPoints = question.is_quiz_mode ? Number(responsePayload.points_earned || 0) : 0;
     await existing.update({

@@ -68,5 +68,10 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   questionController.hideLeaderboard
 );
+router.post(
+  "/questions/:questionId/open-reattempt",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.openForReattempt
+);
 
 module.exports = router;

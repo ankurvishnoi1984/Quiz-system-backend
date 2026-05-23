@@ -320,6 +320,14 @@ function notifyQuestionChange(sessionCode, currentQuestion, isLive) {
   });
 }
 
+function notifyQuestionReattemptOpened(sessionCode, questionId, questionText) {
+  broadcastToSession(sessionCode, {
+    type: "question_reattempt_opened",
+    question_id: Number(questionId),
+    question_text: questionText || ""
+  });
+}
+
 function notifyAnswerRevealed(sessionCode, questionId, answerRevealed, correctOptionIds = []) {
   broadcastToSession(sessionCode, {
     type: "answer_revealed",
@@ -384,6 +392,7 @@ module.exports = {
   broadcastResponse,
   notifySessionUpdate,
   notifyQuestionChange,
+  notifyQuestionReattemptOpened,
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,
   notifyLeaderboard,

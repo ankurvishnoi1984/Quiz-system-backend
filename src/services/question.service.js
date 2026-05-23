@@ -283,6 +283,9 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
     throw error;
   }
   question.is_live = Boolean(isLive);
+  if (!isLive) {
+    question.open_for_reattempt = false;
+  }
   await question.save();
   return question;
 }
@@ -379,6 +382,25 @@ async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
   });
 }
 
+async function openQuestionForReattempt({ questionId, user }) {
+  const question = await getQuestionById({ questionId, user });
+  const session = await getSessionForQuestionFlow(question.session_id);
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Reattempt can be opened only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  question.is_live = true;
+  question.open_for_reattempt = true;
+  await question.save();
+
+  return Question.findByPk(question.question_id, {
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 module.exports = {
   listSessionQuestions,
   createQuestion,
@@ -389,6 +411,7 @@ module.exports = {
   setQuestionLiveState,
   setQuestionAnswerRevealed,
   setQuestionLeaderboardVisibility,
+  openQuestionForReattempt,
   getCorrectOptionIds,
   formatQuestionForParticipant
 };

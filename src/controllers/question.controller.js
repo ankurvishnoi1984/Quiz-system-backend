@@ -9,6 +9,7 @@ const {
   setQuestionLiveState,
   setQuestionAnswerRevealed,
   setQuestionLeaderboardVisibility,
+  openQuestionForReattempt,
   getCorrectOptionIds
 } = require("../services/question.service");
 const {
@@ -18,6 +19,7 @@ const {
 } = require("../validators/question.validator");
 const {
   notifyQuestionChange,
+  notifyQuestionReattemptOpened,
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,
   notifyLeaderboard
@@ -254,6 +256,34 @@ function setLeaderboardVisibilityState(visible) {
   };
 }
 
+async function openForReattempt(req, res) {
+  try {
+    const question = await openQuestionForReattempt({
+      questionId: Number(req.params.questionId),
+      user: req.user
+    });
+    const session = await Session.findByPk(question.session_id, {
+      attributes: ["session_code"]
+    });
+    if (session?.session_code) {
+      notifyQuestionChange(session.session_code, question.question_id, true);
+      notifyQuestionReattemptOpened(
+        session.session_code,
+        question.question_id,
+        question.question_text
+      );
+    }
+    return successResponse(
+      res,
+      { question },
+      "Question opened for reattempt",
+      200
+    );
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   listBySession,
   listBySessionPublic,
@@ -267,5 +297,6 @@ module.exports = {
   revealAnswer: setAnswerRevealedState(true),
   hideAnswer: setAnswerRevealedState(false),
   showLeaderboard: setLeaderboardVisibilityState(true),
-  hideLeaderboard: setLeaderboardVisibilityState(false)
+  hideLeaderboard: setLeaderboardVisibilityState(false),
+  openForReattempt
 };
