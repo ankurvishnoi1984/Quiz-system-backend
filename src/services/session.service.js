@@ -313,14 +313,14 @@ async function updateSession({ sessionId, input, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
 
-  const liveSettingsOnly = ["leaderboard_enabled"];
+  const liveSettingsOnly = ["leaderboard_enabled", "title"];
   const inputKeys = Object.keys(input || {});
 
   if (session.status !== "draft") {
     const disallowed = inputKeys.filter((key) => !liveSettingsOnly.includes(key));
     if (disallowed.length > 0) {
       const error = new Error(
-        "Only leaderboard settings can be updated while the session is live"
+        "Only session title and leaderboard settings can be updated while the session is live"
       );
       error.statusCode = 400;
       throw error;
