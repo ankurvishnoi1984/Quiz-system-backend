@@ -126,6 +126,13 @@ async function submitResponse({ participant, input }) {
     throw error;
   }
 
+  const session = await Session.findByPk(Number(participant.session_id));
+  if (!session || (session.status !== "live" && session.status !== "paused")) {
+    const error = new Error("Session is not accepting responses");
+    error.statusCode = 400;
+    throw error;
+  }
+
   const timed = isQuestionTimed(question);
 
   const existing = await Response.findOne({
@@ -193,10 +200,6 @@ async function submitResponse({ participant, input }) {
       );
     }
   }
-
-  const session = await Session.findByPk(question.session_id, {
-    attributes: ["session_code", "leaderboard_enabled"]
-  });
 
   if (session?.session_code) {
     const payload = {
