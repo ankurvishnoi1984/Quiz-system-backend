@@ -362,7 +362,9 @@ async function updateSession({ sessionId, input, user }) {
     participant_navigation_enabled:
       input.participant_navigation_enabled !== undefined
         ? Boolean(input.participant_navigation_enabled)
-        : session.participant_navigation_enabled
+        : session.participant_navigation_enabled,
+    join_type:
+      input.join_type !== undefined ? input.join_type : session.join_type
   });
 
   await session.save();
