@@ -69,6 +69,11 @@ const Session = sequelize.define(
       allowNull: false,
       defaultValue: false
     },
+    participant_navigation_enabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    },
     qr_code_url: {
       type: DataTypes.TEXT,
       allowNull: true

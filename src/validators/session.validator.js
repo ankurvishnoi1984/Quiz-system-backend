@@ -24,6 +24,13 @@ function validateCreateSessionPayload(payload) {
     errors.push("join_type must be one of: name, anonymous, name_email");
   }
 
+  if (
+    payload?.participant_navigation_enabled !== undefined &&
+    typeof payload.participant_navigation_enabled !== "boolean"
+  ) {
+    errors.push("participant_navigation_enabled must be a boolean");
+  }
+
   return errors;
 }
 
@@ -37,7 +44,8 @@ function validateUpdateSessionPayload(payload) {
     "show_results_to_participants",
     "allow_late_join",
     "leaderboard_enabled",
-    "show_question_leaderboard"
+    "show_question_leaderboard",
+    "participant_navigation_enabled"
   ];
 
   if (!payload || typeof payload !== "object") {

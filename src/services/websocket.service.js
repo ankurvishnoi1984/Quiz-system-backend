@@ -362,7 +362,8 @@ function notifySessionSettings(sessionCode, settings) {
   broadcastToSession(sessionCode, {
     type: "session_settings_updated",
     leaderboard_enabled: Boolean(settings.leaderboard_enabled),
-    show_question_leaderboard: Boolean(settings.show_question_leaderboard)
+    show_question_leaderboard: Boolean(settings.show_question_leaderboard),
+    participant_navigation_enabled: settings.participant_navigation_enabled !== false
   });
 }
 

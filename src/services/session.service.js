@@ -177,6 +177,10 @@ async function createSession({ deptId, input, user }) {
      allow_late_join: input.allow_late_join ?? true,
      leaderboard_enabled: input.leaderboard_enabled ?? true,
      show_question_leaderboard: input.show_question_leaderboard ?? false,
+     participant_navigation_enabled:
+       input.participant_navigation_enabled !== undefined
+         ? Boolean(input.participant_navigation_enabled)
+         : true,
      qr_code_url: input.qr_code_url || null
    });
 }
@@ -232,6 +236,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         allow_late_join: source.allow_late_join ?? true,
         leaderboard_enabled: source.leaderboard_enabled ?? true,
         show_question_leaderboard: source.show_question_leaderboard ?? false,
+        participant_navigation_enabled: source.participant_navigation_enabled ?? true,
         qr_code_url: null
       },
       { transaction }
@@ -353,7 +358,11 @@ async function updateSession({ sessionId, input, user }) {
     show_question_leaderboard:
       input.show_question_leaderboard !== undefined
         ? Boolean(input.show_question_leaderboard)
-        : session.show_question_leaderboard
+        : session.show_question_leaderboard,
+    participant_navigation_enabled:
+      input.participant_navigation_enabled !== undefined
+        ? Boolean(input.participant_navigation_enabled)
+        : session.participant_navigation_enabled
   });
 
   await session.save();
