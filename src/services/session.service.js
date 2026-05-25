@@ -180,7 +180,7 @@ async function createSession({ deptId, input, user }) {
      participant_navigation_enabled:
        input.participant_navigation_enabled !== undefined
          ? Boolean(input.participant_navigation_enabled)
-         : true,
+         : false,
      qr_code_url: input.qr_code_url || null
    });
 }

@@ -72,7 +72,7 @@ const Session = sequelize.define(
     participant_navigation_enabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true
+      defaultValue: false
     },
     qr_code_url: {
       type: DataTypes.TEXT,
