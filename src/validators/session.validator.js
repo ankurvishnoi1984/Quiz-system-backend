@@ -45,7 +45,8 @@ function validateUpdateSessionPayload(payload) {
     "allow_late_join",
     "leaderboard_enabled",
     "show_question_leaderboard",
-    "participant_navigation_enabled"
+    "participant_navigation_enabled",
+    "join_type"
   ];
 
   if (!payload || typeof payload !== "object") {
@@ -68,6 +69,13 @@ function validateUpdateSessionPayload(payload) {
       Number(payload.max_participants) <= 0)
   ) {
     errors.push("max_participants must be a positive number");
+  }
+
+  if (
+    payload?.join_type !== undefined &&
+    !["name", "anonymous", "name_email"].includes(payload.join_type)
+  ) {
+    errors.push("join_type must be one of: name, anonymous, name_email");
   }
 
   return errors;
