@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const {
   Question,
   QuestionOption,
@@ -6,6 +7,43 @@ const {
   Client,
   User
 } = require("../models");
+
+function isParticipantNavigationEnabled(session) {
+  return session.participant_navigation_enabled !== false;
+}
+
+/** When navigation is off, only one question may be live per session. */
+async function deactivateOtherLiveQuestions(session, activeQuestionId) {
+  if (isParticipantNavigationEnabled(session)) {
+    return [];
+  }
+
+  const others = await Question.findAll({
+    where: {
+      session_id: session.session_id,
+      is_live: true,
+      question_id: { [Op.ne]: Number(activeQuestionId) }
+    },
+    attributes: ["question_id"]
+  });
+
+  const deactivatedQuestionIds = others.map((row) => row.question_id);
+  if (!deactivatedQuestionIds.length) {
+    return [];
+  }
+
+  await Question.update(
+    { is_live: false, open_for_reattempt: false },
+    {
+      where: {
+        session_id: session.session_id,
+        question_id: deactivatedQuestionIds
+      }
+    }
+  );
+
+  return deactivatedQuestionIds;
+}
 
 function assertScopeAccess(user, sessionWithDept) {
   if (user.role === "super_admin") return;
@@ -282,12 +320,18 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
     error.statusCode = 400;
     throw error;
   }
+
+  let deactivatedQuestionIds = [];
+  if (Boolean(isLive)) {
+    deactivatedQuestionIds = await deactivateOtherLiveQuestions(session, question.question_id);
+  }
+
   question.is_live = Boolean(isLive);
   if (!isLive) {
     question.open_for_reattempt = false;
   }
   await question.save();
-  return question;
+  return { question, deactivatedQuestionIds };
 }
 
 function getQuestionOptions(question) {
@@ -392,13 +436,20 @@ async function openQuestionForReattempt({ questionId, user }) {
     throw error;
   }
 
+  const deactivatedQuestionIds = await deactivateOtherLiveQuestions(
+    session,
+    question.question_id
+  );
+
   question.is_live = true;
   question.open_for_reattempt = true;
   await question.save();
 
-  return Question.findByPk(question.question_id, {
+  const saved = await Question.findByPk(question.question_id, {
     include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
   });
+
+  return { question: saved, deactivatedQuestionIds };
 }
 
 module.exports = {

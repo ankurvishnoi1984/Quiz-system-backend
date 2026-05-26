@@ -159,7 +159,7 @@ async function reorder(req, res) {
 function setLiveState(isLive) {
   return async (req, res) => {
     try {
-      const question = await setQuestionLiveState({
+      const { question, deactivatedQuestionIds = [] } = await setQuestionLiveState({
         questionId: Number(req.params.questionId),
         user: req.user,
         isLive
@@ -168,6 +168,9 @@ function setLiveState(isLive) {
         attributes: ["session_code"]
       });
       if (session?.session_code) {
+        for (const otherId of deactivatedQuestionIds) {
+          notifyQuestionChange(session.session_code, otherId, false);
+        }
         notifyQuestionChange(session.session_code, question.question_id, isLive);
       }
       return successResponse(
@@ -258,7 +261,7 @@ function setLeaderboardVisibilityState(visible) {
 
 async function openForReattempt(req, res) {
   try {
-    const question = await openQuestionForReattempt({
+    const { question, deactivatedQuestionIds = [] } = await openQuestionForReattempt({
       questionId: Number(req.params.questionId),
       user: req.user
     });
@@ -266,6 +269,9 @@ async function openForReattempt(req, res) {
       attributes: ["session_code"]
     });
     if (session?.session_code) {
+      for (const otherId of deactivatedQuestionIds) {
+        notifyQuestionChange(session.session_code, otherId, false);
+      }
       notifyQuestionChange(session.session_code, question.question_id, true);
       notifyQuestionReattemptOpened(
         session.session_code,
