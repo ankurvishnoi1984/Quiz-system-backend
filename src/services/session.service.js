@@ -10,7 +10,7 @@ const {
   Response
 } = require("../models");
 const { signAccessToken } = require("../utils/jwt");
-const { notifySessionProgress } = require("./websocket.service");
+const { notifySessionProgress, notifyParticipantJoined } = require("./websocket.service");
 
 function canAccessDepartment(user, department) {
   if (user.role === "super_admin") return true;
@@ -424,6 +424,31 @@ async function getSessionByCode(code) {
   return session;
 }
 
+function participantJoinLabel(participant) {
+  if (participant?.nickname?.trim()) return participant.nickname.trim();
+  if (participant?.is_anonymous) return "Anonymous";
+  return `Participant ${participant.participant_id}`;
+}
+
+async function listSessionParticipants({ sessionId, user }) {
+  const session = await getSessionOrThrow(sessionId);
+  assertSessionWriteAccess(user, session);
+
+  const rows = await Participant.findAll({
+    where: { session_id: session.session_id },
+    attributes: ["participant_id", "nickname", "is_anonymous", "joined_at"],
+    order: [
+      ["joined_at", "ASC"],
+      ["participant_id", "ASC"]
+    ]
+  });
+
+  return rows.map((row) => ({
+    participant_id: row.participant_id,
+    nickname: participantJoinLabel(row)
+  }));
+}
+
 async function joinSession({ code, payload }) {
   const session = await getSessionByCode(code);
 
@@ -451,7 +476,7 @@ async function joinSession({ code, payload }) {
     });
     const wantsFreshIdentity = Boolean(payload.nickname || payload.avatar_url) || payload.force_new_participant === true;
     if (existing && !wantsFreshIdentity) {
-      return {
+      const result = {
         participant: existing,
         token: signAccessToken({
           participant_id: existing.participant_id,
@@ -460,20 +485,26 @@ async function joinSession({ code, payload }) {
           role: "participant"
         })
       };
+      if (session.session_code) {
+        notifyParticipantJoined(session.session_code, existing);
+        notifySessionProgress(session.session_code, session.session_id).catch(() => {});
+      }
+      return result;
     }
   }
 
-   const participant = await Participant.create({
-     session_id: session.session_id,
-     dept_id: session.dept_id,
-     nickname: payload.nickname || null,
-     email: payload.email || null,
-     avatar_url: payload.avatar_url || null,
-     is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
-     device_fingerprint: payload.device_fingerprint || null
-   });
+  const participant = await Participant.create({
+    session_id: session.session_id,
+    dept_id: session.dept_id,
+    nickname: payload.nickname || null,
+    email: payload.email || null,
+    avatar_url: payload.avatar_url || null,
+    is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
+    device_fingerprint: payload.device_fingerprint || null
+  });
 
   if (session.session_code) {
+    notifyParticipantJoined(session.session_code, participant);
     notifySessionProgress(session.session_code, session.session_id).catch(() => {});
   }
 
@@ -510,5 +541,6 @@ module.exports = {
   transitionSessionStatus,
   getSessionByCode,
   joinSession,
+  listSessionParticipants,
   getSessionQr
 };

@@ -9,6 +9,7 @@ const {
   transitionSessionStatus,
   getSessionByCode,
   joinSession,
+  listSessionParticipants,
   getSessionQr
 } = require("../services/session.service");
 const {
@@ -61,6 +62,18 @@ async function detail(req, res) {
       user: req.user
     });
     return successResponse(res, { session }, "Session fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function listParticipants(req, res) {
+  try {
+    const participants = await listSessionParticipants({
+      sessionId: Number(req.params.sessionId),
+      user: req.user
+    });
+    return successResponse(res, { participants }, "Participants fetched", 200);
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);
   }
@@ -226,6 +239,7 @@ module.exports = {
   listByDepartment,
   createForDepartment,
   detail,
+  listParticipants,
   update,
   remove,
   duplicate,

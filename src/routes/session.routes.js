@@ -28,6 +28,11 @@ router.get(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.detail
 );
+router.get(
+  "/sessions/:sessionId/participants",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.listParticipants
+);
 router.put(
   "/sessions/:sessionId",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

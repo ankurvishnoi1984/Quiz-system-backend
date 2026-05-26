@@ -367,6 +367,17 @@ function notifySessionSettings(sessionCode, settings) {
   });
 }
 
+function notifyParticipantJoined(sessionCode, participant) {
+  if (!sessionCode || !participant) return;
+  broadcastToSession(sessionCode, {
+    type: "participant_joined",
+    participant: {
+      participant_id: participant.participant_id,
+      nickname: participant.nickname || null
+    }
+  });
+}
+
 async function notifySessionProgress(sessionCode, sessionId) {
   const progress = await getSessionProgress(sessionId);
   broadcastToSession(sessionCode, {
@@ -398,6 +409,7 @@ module.exports = {
   notifyQuestionLeaderboardVisibility,
   notifyLeaderboard,
   notifySessionSettings,
+  notifyParticipantJoined,
   notifySessionProgress,
   getLiveResults,
   getSessionProgress,
