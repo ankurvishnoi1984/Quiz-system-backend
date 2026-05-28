@@ -33,7 +33,12 @@ async function deactivateOtherLiveQuestions(session, activeQuestionId) {
   }
 
   await Question.update(
-    { is_live: false, open_for_reattempt: false },
+    {
+      is_live: false,
+      open_for_reattempt: false,
+      answer_revealed: false,
+      show_leaderboard: false
+    },
     {
       where: {
         session_id: session.session_id,
@@ -329,6 +334,8 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
   question.is_live = Boolean(isLive);
   if (!isLive) {
     question.open_for_reattempt = false;
+    question.answer_revealed = false;
+    question.show_leaderboard = false;
   }
   await question.save();
   return { question, deactivatedQuestionIds };

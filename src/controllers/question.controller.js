@@ -170,6 +170,12 @@ function setLiveState(isLive) {
       if (session?.session_code) {
         for (const otherId of deactivatedQuestionIds) {
           notifyQuestionChange(session.session_code, otherId, false);
+          notifyAnswerRevealed(session.session_code, otherId, false, []);
+          notifyQuestionLeaderboardVisibility(session.session_code, otherId, false);
+        }
+        if (!isLive) {
+          notifyAnswerRevealed(session.session_code, question.question_id, false, []);
+          notifyQuestionLeaderboardVisibility(session.session_code, question.question_id, false);
         }
         notifyQuestionChange(session.session_code, question.question_id, isLive);
       }
@@ -271,6 +277,8 @@ async function openForReattempt(req, res) {
     if (session?.session_code) {
       for (const otherId of deactivatedQuestionIds) {
         notifyQuestionChange(session.session_code, otherId, false);
+        notifyAnswerRevealed(session.session_code, otherId, false, []);
+        notifyQuestionLeaderboardVisibility(session.session_code, otherId, false);
       }
       notifyQuestionChange(session.session_code, question.question_id, true);
       notifyQuestionReattemptOpened(
