@@ -125,6 +125,11 @@ async function submitResponse({ participant, input }) {
     error.statusCode = 400;
     throw error;
   }
+  if (question.submissions_closed) {
+    const error = new Error("This question is closed and no longer accepting submissions");
+    error.statusCode = 400;
+    throw error;
+  }
 
   const session = await Session.findByPk(Number(participant.session_id));
   if (!session || (session.status !== "live" && session.status !== "paused")) {

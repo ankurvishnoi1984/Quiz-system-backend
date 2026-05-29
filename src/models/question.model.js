@@ -106,6 +106,11 @@ const Question = sequelize.define(
       allowNull: false,
       defaultValue: false
     },
+    submissions_closed: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     display_order: {
       type: DataTypes.INTEGER,
       allowNull: false

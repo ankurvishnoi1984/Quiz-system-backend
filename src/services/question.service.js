@@ -38,7 +38,8 @@ async function deactivateOtherLiveQuestions(session, activeQuestionId) {
       open_for_reattempt: false,
       answer_revealed: false,
       show_leaderboard: false,
-      live_activated_at: null
+      live_activated_at: null,
+      submissions_closed: false
     },
     {
       where: {
@@ -335,11 +336,13 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
   question.is_live = Boolean(isLive);
   if (Boolean(isLive)) {
     question.live_activated_at = new Date();
+    question.submissions_closed = false;
   } else {
     question.open_for_reattempt = false;
     question.answer_revealed = false;
     question.show_leaderboard = false;
     question.live_activated_at = null;
+    question.submissions_closed = false;
   }
   await question.save();
   const saved = await Question.findByPk(question.question_id, {
@@ -383,7 +386,8 @@ function formatQuestionForParticipant(question) {
     answer_revealed: revealed,
     correct_option_ids,
     show_leaderboard: Boolean(plain.show_leaderboard),
-    live_activated_at: plain.live_activated_at || null
+    live_activated_at: plain.live_activated_at || null,
+    submissions_closed: Boolean(plain.submissions_closed)
   };
 }
 
@@ -441,6 +445,50 @@ async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
   });
 }
 
+async function closeQuestionSubmissions({ questionId, user }) {
+  const question = await getQuestionById({ questionId, user });
+  const session = await getSessionForQuestionFlow(question.session_id);
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Question can be closed only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (isParticipantNavigationEnabled(session)) {
+    const error = new Error(
+      "Close question is only available in single active question mode"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (Number(question.time_limit_seconds) > 0) {
+    const error = new Error("Close question is only available for untimed questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!question.is_live) {
+    const error = new Error("Only a live question can be closed");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (question.submissions_closed) {
+    const error = new Error("Question is already closed");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  question.submissions_closed = true;
+  await question.save();
+
+  return Question.findByPk(question.question_id, {
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 async function openQuestionForReattempt({ questionId, user }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
@@ -458,6 +506,7 @@ async function openQuestionForReattempt({ questionId, user }) {
 
   question.is_live = true;
   question.open_for_reattempt = true;
+  question.submissions_closed = false;
   question.live_activated_at = new Date();
   await question.save();
 
@@ -478,6 +527,7 @@ module.exports = {
   setQuestionLiveState,
   setQuestionAnswerRevealed,
   setQuestionLeaderboardVisibility,
+  closeQuestionSubmissions,
   openQuestionForReattempt,
   getCorrectOptionIds,
   formatQuestionForParticipant

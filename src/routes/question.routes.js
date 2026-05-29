@@ -73,5 +73,10 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   questionController.openForReattempt
 );
+router.post(
+  "/questions/:questionId/close",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.closeQuestion
+);
 
 module.exports = router;

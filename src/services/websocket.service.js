@@ -319,7 +319,18 @@ function notifyQuestionChange(sessionCode, payload) {
     question_id: payload.question_id,
     is_live: Boolean(payload.is_live),
     live_activated_at: payload.live_activated_at ?? null,
-    time_limit_seconds: payload.time_limit_seconds ?? null
+    time_limit_seconds: payload.time_limit_seconds ?? null,
+    submissions_closed: Boolean(payload.submissions_closed)
+  });
+}
+
+function notifyQuestionSubmissionsClosed(sessionCode, question) {
+  if (!sessionCode || !question) return;
+  broadcastToSession(sessionCode, {
+    type: "question_submissions_closed",
+    question_id: Number(question.question_id),
+    submissions_closed: true,
+    question_text: question.question_text || ""
   });
 }
 
@@ -408,6 +419,7 @@ module.exports = {
   broadcastResponse,
   notifySessionUpdate,
   notifyQuestionChange,
+  notifyQuestionSubmissionsClosed,
   notifyQuestionReattemptOpened,
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,

@@ -9,6 +9,7 @@ const {
   setQuestionLiveState,
   setQuestionAnswerRevealed,
   setQuestionLeaderboardVisibility,
+  closeQuestionSubmissions,
   openQuestionForReattempt,
   getCorrectOptionIds
 } = require("../services/question.service");
@@ -19,6 +20,7 @@ const {
 } = require("../validators/question.validator");
 const {
   notifyQuestionChange,
+  notifyQuestionSubmissionsClosed,
   notifyQuestionReattemptOpened,
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,
@@ -161,7 +163,8 @@ function buildQuestionChangePayload(question, isLive) {
     question_id: question.question_id,
     is_live: Boolean(isLive),
     live_activated_at: isLive ? question.live_activated_at ?? null : null,
-    time_limit_seconds: question.time_limit_seconds ?? null
+    time_limit_seconds: question.time_limit_seconds ?? null,
+    submissions_closed: isLive ? Boolean(question.submissions_closed) : false
   };
 }
 
@@ -170,7 +173,8 @@ function buildQuestionDeactivatePayload(questionId) {
     question_id: questionId,
     is_live: false,
     live_activated_at: null,
-    time_limit_seconds: null
+    time_limit_seconds: null,
+    submissions_closed: false
   };
 }
 
@@ -286,6 +290,25 @@ function setLeaderboardVisibilityState(visible) {
   };
 }
 
+async function closeQuestion(req, res) {
+  try {
+    const question = await closeQuestionSubmissions({
+      questionId: Number(req.params.questionId),
+      user: req.user
+    });
+    const session = await Session.findByPk(question.session_id, {
+      attributes: ["session_code"]
+    });
+    if (session?.session_code) {
+      notifyQuestionChange(session.session_code, buildQuestionChangePayload(question, true));
+      notifyQuestionSubmissionsClosed(session.session_code, question);
+    }
+    return successResponse(res, { question }, "Question closed", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function openForReattempt(req, res) {
   try {
     const { question, deactivatedQuestionIds = [] } = await openQuestionForReattempt({
@@ -333,5 +356,6 @@ module.exports = {
   hideAnswer: setAnswerRevealedState(false),
   showLeaderboard: setLeaderboardVisibilityState(true),
   hideLeaderboard: setLeaderboardVisibilityState(false),
+  closeQuestion,
   openForReattempt
 };
