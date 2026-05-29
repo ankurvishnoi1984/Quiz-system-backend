@@ -156,6 +156,24 @@ async function reorder(req, res) {
   }
 }
 
+function buildQuestionChangePayload(question, isLive) {
+  return {
+    question_id: question.question_id,
+    is_live: Boolean(isLive),
+    live_activated_at: isLive ? question.live_activated_at ?? null : null,
+    time_limit_seconds: question.time_limit_seconds ?? null
+  };
+}
+
+function buildQuestionDeactivatePayload(questionId) {
+  return {
+    question_id: questionId,
+    is_live: false,
+    live_activated_at: null,
+    time_limit_seconds: null
+  };
+}
+
 function setLiveState(isLive) {
   return async (req, res) => {
     try {
@@ -169,7 +187,7 @@ function setLiveState(isLive) {
       });
       if (session?.session_code) {
         for (const otherId of deactivatedQuestionIds) {
-          notifyQuestionChange(session.session_code, otherId, false);
+          notifyQuestionChange(session.session_code, buildQuestionDeactivatePayload(otherId));
           notifyAnswerRevealed(session.session_code, otherId, false, []);
           notifyQuestionLeaderboardVisibility(session.session_code, otherId, false);
         }
@@ -177,7 +195,10 @@ function setLiveState(isLive) {
           notifyAnswerRevealed(session.session_code, question.question_id, false, []);
           notifyQuestionLeaderboardVisibility(session.session_code, question.question_id, false);
         }
-        notifyQuestionChange(session.session_code, question.question_id, isLive);
+        notifyQuestionChange(
+          session.session_code,
+          buildQuestionChangePayload(question, isLive)
+        );
       }
       return successResponse(
         res,
@@ -276,11 +297,11 @@ async function openForReattempt(req, res) {
     });
     if (session?.session_code) {
       for (const otherId of deactivatedQuestionIds) {
-        notifyQuestionChange(session.session_code, otherId, false);
+        notifyQuestionChange(session.session_code, buildQuestionDeactivatePayload(otherId));
         notifyAnswerRevealed(session.session_code, otherId, false, []);
         notifyQuestionLeaderboardVisibility(session.session_code, otherId, false);
       }
-      notifyQuestionChange(session.session_code, question.question_id, true);
+      notifyQuestionChange(session.session_code, buildQuestionChangePayload(question, true));
       notifyQuestionReattemptOpened(
         session.session_code,
         question.question_id,

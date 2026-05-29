@@ -174,7 +174,7 @@ async function createSession({ deptId, input, user }) {
      join_type: input.join_type ?? 'name',
      max_participants: input.max_participants || 500,
      show_results_to_participants: input.show_results_to_participants ?? true,
-     allow_late_join: input.allow_late_join ?? true,
+     allow_late_join: false,
      leaderboard_enabled: input.leaderboard_enabled ?? true,
      show_question_leaderboard: input.show_question_leaderboard ?? false,
      participant_navigation_enabled:
@@ -233,7 +233,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         join_type: source.join_type || "name",
         max_participants: source.max_participants ?? 500,
         show_results_to_participants: source.show_results_to_participants ?? true,
-        allow_late_join: source.allow_late_join ?? true,
+        allow_late_join: source.allow_late_join ?? false,
         leaderboard_enabled: source.leaderboard_enabled ?? true,
         show_question_leaderboard: source.show_question_leaderboard ?? false,
         participant_navigation_enabled: source.participant_navigation_enabled ?? true,
@@ -347,10 +347,6 @@ async function updateSession({ sessionId, input, user }) {
       input.show_results_to_participants !== undefined
         ? Boolean(input.show_results_to_participants)
         : session.show_results_to_participants,
-    allow_late_join:
-      input.allow_late_join !== undefined
-        ? Boolean(input.allow_late_join)
-        : session.allow_late_join,
     leaderboard_enabled:
       input.leaderboard_enabled !== undefined
         ? Boolean(input.leaderboard_enabled)

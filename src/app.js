@@ -2,10 +2,13 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const apiRoutes = require("./routes");
+const { healthHandler } = require("./health");
 const { errorResponse } = require("./utils/response");
 const { getFrontendPublicUrl, buildSessionJoinPath } = require("./config/publicAppUrl");
 
 const app = express();
+
+app.get("/health", healthHandler);
 
 app.use(helmet());
 app.use(cors());

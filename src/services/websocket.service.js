@@ -312,11 +312,14 @@ function notifySessionUpdate(sessionCode, status, extra = {}) {
   });
 }
 
-function notifyQuestionChange(sessionCode, currentQuestion, isLive) {
+function notifyQuestionChange(sessionCode, payload) {
+  if (!sessionCode || !payload) return;
   broadcastToSession(sessionCode, {
     type: "question_changed",
-    question_id: currentQuestion,
-    is_live: isLive
+    question_id: payload.question_id,
+    is_live: Boolean(payload.is_live),
+    live_activated_at: payload.live_activated_at ?? null,
+    time_limit_seconds: payload.time_limit_seconds ?? null
   });
 }
 
@@ -363,7 +366,8 @@ function notifySessionSettings(sessionCode, settings) {
     type: "session_settings_updated",
     leaderboard_enabled: Boolean(settings.leaderboard_enabled),
     show_question_leaderboard: Boolean(settings.show_question_leaderboard),
-    participant_navigation_enabled: settings.participant_navigation_enabled !== false
+    participant_navigation_enabled: settings.participant_navigation_enabled !== false,
+    allow_late_join: Boolean(settings.allow_late_join)
   });
 }
 

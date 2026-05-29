@@ -37,7 +37,8 @@ async function deactivateOtherLiveQuestions(session, activeQuestionId) {
       is_live: false,
       open_for_reattempt: false,
       answer_revealed: false,
-      show_leaderboard: false
+      show_leaderboard: false,
+      live_activated_at: null
     },
     {
       where: {
@@ -332,13 +333,19 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
   }
 
   question.is_live = Boolean(isLive);
-  if (!isLive) {
+  if (Boolean(isLive)) {
+    question.live_activated_at = new Date();
+  } else {
     question.open_for_reattempt = false;
     question.answer_revealed = false;
     question.show_leaderboard = false;
+    question.live_activated_at = null;
   }
   await question.save();
-  return { question, deactivatedQuestionIds };
+  const saved = await Question.findByPk(question.question_id, {
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+  return { question: saved, deactivatedQuestionIds };
 }
 
 function getQuestionOptions(question) {
@@ -375,7 +382,8 @@ function formatQuestionForParticipant(question) {
     question_options,
     answer_revealed: revealed,
     correct_option_ids,
-    show_leaderboard: Boolean(plain.show_leaderboard)
+    show_leaderboard: Boolean(plain.show_leaderboard),
+    live_activated_at: plain.live_activated_at || null
   };
 }
 
@@ -450,6 +458,7 @@ async function openQuestionForReattempt({ questionId, user }) {
 
   question.is_live = true;
   question.open_for_reattempt = true;
+  question.live_activated_at = new Date();
   await question.save();
 
   const saved = await Question.findByPk(question.question_id, {

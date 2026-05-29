@@ -95,7 +95,8 @@ async function update(req, res) {
       notifySessionSettings(session.session_code, {
         leaderboard_enabled: session.leaderboard_enabled,
         show_question_leaderboard: session.show_question_leaderboard,
-        participant_navigation_enabled: session.participant_navigation_enabled !== false
+        participant_navigation_enabled: session.participant_navigation_enabled !== false,
+        allow_late_join: Boolean(session.allow_late_join)
       });
     }
     return successResponse(res, { session }, "Session updated", 200);
@@ -168,7 +169,8 @@ async function lookupByCode(req, res) {
           join_type: session.join_type,
           leaderboard_enabled: Boolean(session.leaderboard_enabled),
           show_question_leaderboard: Boolean(session.show_question_leaderboard),
-          participant_navigation_enabled: session.participant_navigation_enabled !== false
+          participant_navigation_enabled: session.participant_navigation_enabled !== false,
+          allow_late_join: Boolean(session.allow_late_join)
         }
       },
       "Session found",

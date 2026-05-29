@@ -57,7 +57,7 @@ const Session = sequelize.define(
     allow_late_join: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
-      defaultValue: true
+      defaultValue: false
     },
     leaderboard_enabled: {
       type: DataTypes.BOOLEAN,

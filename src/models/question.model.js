@@ -87,6 +87,10 @@ const Question = sequelize.define(
       allowNull: true,
       defaultValue: true
     },
+    live_activated_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     answer_revealed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

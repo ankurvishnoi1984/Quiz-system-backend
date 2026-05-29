@@ -1,4 +1,5 @@
 const express = require("express");
+const { healthHandler } = require("../health");
 const authRoutes = require("./auth.routes");
 const clientRoutes = require("./client.routes");
 const departmentRoutes = require("./department.routes");
@@ -11,12 +12,7 @@ const analyticsRoutes = require("./analytics.routes");
 
 const router = express.Router();
 
-router.get("/health", (_req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "API is healthy"
-  });
-});
+router.get("/health", healthHandler);
 
 router.use("/auth", authRoutes);
 router.use("/clients", clientRoutes);

@@ -42,7 +42,6 @@ function validateUpdateSessionPayload(payload) {
     "is_anonymous_default",
     "max_participants",
     "show_results_to_participants",
-    "allow_late_join",
     "leaderboard_enabled",
     "show_question_leaderboard",
     "participant_navigation_enabled",
