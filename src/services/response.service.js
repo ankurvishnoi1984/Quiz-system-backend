@@ -7,13 +7,8 @@ const {
   Department,
   Client
 } = require("../models");
-const { Op } = require("sequelize");
 const { formatQuestionForParticipant } = require("./question.service");
 const { notifyLeaderboard } = require("./websocket.service");
-const {
-  isStrictLateJoinSession,
-  sessionHasTimedQuestionsInDb
-} = require("../utils/sessionFlags");
 
 function participantDisplayName(participant, participantId) {
   const p = participant?.participant ?? participant?.Participant ?? participant;
@@ -379,21 +374,6 @@ async function getSessionForQuestionFlow(sessionId) {
   return session;
 }
 
-function isTimedQuestionVisibleForStrictLateJoin(question, now = Date.now()) {
-  const limit = Number(question.time_limit_seconds) || 0;
-  if (limit <= 0) return true;
-
-  const activatedRaw = question.live_activated_at;
-  if (!activatedRaw) return true;
-
-  const activated = new Date(activatedRaw).getTime();
-  if (!Number.isFinite(activated) || activated < Date.UTC(2020, 0, 1)) {
-    return true;
-  }
-
-  return now < activated + limit * 1000;
-}
-
 async function listParticipantQuestionsService({ sessionId, participant }) {
   const session = await getSessionForQuestionFlow(sessionId);
 
@@ -411,13 +391,6 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
       [QuestionOption, "display_order", "ASC"]
     ]
   });
-
-  const hasTimedQuestions = await sessionHasTimedQuestionsInDb(sessionId);
-  const strictLateJoin = isStrictLateJoinSession(session, hasTimedQuestions);
-  if (strictLateJoin) {
-    const now = Date.now();
-    questions = questions.filter((q) => isTimedQuestionVisibleForStrictLateJoin(q, now));
-  }
 
   return questions.map(formatQuestionForParticipant);
 }
