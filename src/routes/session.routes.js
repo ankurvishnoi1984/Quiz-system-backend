@@ -68,6 +68,11 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.end
 );
+router.post(
+  "/sessions/:sessionId/close-all-questions",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.closeAllQuestions
+);
 router.get(
   "/sessions/:sessionId/qr",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

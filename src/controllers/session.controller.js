@@ -19,9 +19,13 @@ const {
 } = require("../validators/session.validator");
 const {
   notifySessionUpdate,
-  notifySessionSettings
+  notifySessionSettings,
+  notifyQuestionChange,
+  notifyAllQuestionsSubmissionsClosed
 } = require("../services/websocket.service");
 const { buildSessionLeaderboard } = require("../services/response.service");
+const { closeAllQuestionSubmissionsForSession } = require("../services/question.service");
+const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
 async function listByDepartment(req, res) {
@@ -237,6 +241,49 @@ async function qr(req, res) {
   }
 }
 
+function buildClosedQuestionChangePayload(question) {
+  return {
+    question_id: question.question_id,
+    is_live: true,
+    live_activated_at: question.live_activated_at ?? null,
+    time_limit_seconds: question.time_limit_seconds ?? null,
+    submissions_closed: true,
+    open_for_reattempt: Boolean(question.open_for_reattempt)
+  };
+}
+
+async function closeAllQuestions(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    const questions = await closeAllQuestionSubmissionsForSession({
+      sessionId,
+      user: req.user
+    });
+    const session = await Session.findByPk(sessionId, {
+      attributes: ["session_code"]
+    });
+    if (session?.session_code) {
+      for (const question of questions) {
+        notifyQuestionChange(
+          session.session_code,
+          buildClosedQuestionChangePayload(question)
+        );
+      }
+      notifyAllQuestionsSubmissionsClosed(session.session_code, {
+        closed_count: questions.length
+      });
+    }
+    return successResponse(
+      res,
+      { questions, closed_count: questions.length },
+      "All questions closed",
+      200
+    );
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   listByDepartment,
   createForDepartment,
@@ -251,5 +298,6 @@ module.exports = {
   end: lifecycleAction("end"),
   lookupByCode,
   joinByCode,
-  qr
+  qr,
+  closeAllQuestions
 };

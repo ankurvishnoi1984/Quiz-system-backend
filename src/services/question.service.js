@@ -491,6 +491,59 @@ async function closeQuestionSubmissions({ questionId, user }) {
   });
 }
 
+async function closeAllQuestionSubmissionsForSession({ sessionId, user }) {
+  const session = await getSessionForQuestionFlow(sessionId);
+  assertScopeAccess(user, session);
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Questions can be closed only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isParticipantNavigationEnabled(session)) {
+    const error = new Error(
+      "Close all questions is only available in multiple active question mode"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const liveQuestions = await Question.findAll({
+    where: { session_id: sessionId, is_live: true },
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+
+  const timedLive = liveQuestions.filter((q) => Number(q.time_limit_seconds) > 0);
+  if (timedLive.length > 0) {
+    const error = new Error("Close all questions is only available for untimed sessions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const toClose = liveQuestions.filter((q) => !q.submissions_closed);
+  if (!toClose.length) {
+    const error = new Error(
+      liveQuestions.length
+        ? "All live questions are already closed"
+        : "No live questions to close"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const questionIds = toClose.map((q) => q.question_id);
+  await Question.update(
+    { submissions_closed: true },
+    { where: { session_id: sessionId, question_id: questionIds } }
+  );
+
+  return Question.findAll({
+    where: { question_id: questionIds },
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 async function openQuestionForReattempt({ questionId, user }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
@@ -530,6 +583,7 @@ module.exports = {
   setQuestionAnswerRevealed,
   setQuestionLeaderboardVisibility,
   closeQuestionSubmissions,
+  closeAllQuestionSubmissionsForSession,
   openQuestionForReattempt,
   getCorrectOptionIds,
   formatQuestionForParticipant

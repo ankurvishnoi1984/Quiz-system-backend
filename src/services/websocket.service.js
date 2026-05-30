@@ -325,6 +325,14 @@ function notifyQuestionChange(sessionCode, payload) {
   });
 }
 
+function notifyAllQuestionsSubmissionsClosed(sessionCode, payload = {}) {
+  if (!sessionCode) return;
+  broadcastToSession(sessionCode, {
+    type: "all_questions_submissions_closed",
+    closed_count: Number(payload.closed_count) || 0
+  });
+}
+
 function notifyQuestionSubmissionsClosed(sessionCode, question) {
   if (!sessionCode || !question) return;
   broadcastToSession(sessionCode, {
@@ -423,6 +431,7 @@ module.exports = {
   notifySessionUpdate,
   notifyQuestionChange,
   notifyQuestionSubmissionsClosed,
+  notifyAllQuestionsSubmissionsClosed,
   notifyQuestionReattemptOpened,
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,
