@@ -387,7 +387,8 @@ function formatQuestionForParticipant(question) {
     correct_option_ids,
     show_leaderboard: Boolean(plain.show_leaderboard),
     live_activated_at: plain.live_activated_at || null,
-    submissions_closed: Boolean(plain.submissions_closed)
+    submissions_closed: Boolean(plain.submissions_closed),
+    open_for_reattempt: Boolean(plain.open_for_reattempt)
   };
 }
 

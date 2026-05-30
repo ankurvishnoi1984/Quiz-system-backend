@@ -164,7 +164,8 @@ function buildQuestionChangePayload(question, isLive) {
     is_live: Boolean(isLive),
     live_activated_at: isLive ? question.live_activated_at ?? null : null,
     time_limit_seconds: question.time_limit_seconds ?? null,
-    submissions_closed: isLive ? Boolean(question.submissions_closed) : false
+    submissions_closed: isLive ? Boolean(question.submissions_closed) : false,
+    open_for_reattempt: isLive ? Boolean(question.open_for_reattempt) : false
   };
 }
 
@@ -174,7 +175,8 @@ function buildQuestionDeactivatePayload(questionId) {
     is_live: false,
     live_activated_at: null,
     time_limit_seconds: null,
-    submissions_closed: false
+    submissions_closed: false,
+    open_for_reattempt: false
   };
 }
 
@@ -328,7 +330,11 @@ async function openForReattempt(req, res) {
       notifyQuestionReattemptOpened(
         session.session_code,
         question.question_id,
-        question.question_text
+        question.question_text,
+        {
+          live_activated_at: question.live_activated_at,
+          time_limit_seconds: question.time_limit_seconds
+        }
       );
     }
     return successResponse(

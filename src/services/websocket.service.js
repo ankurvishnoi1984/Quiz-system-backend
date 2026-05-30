@@ -320,7 +320,8 @@ function notifyQuestionChange(sessionCode, payload) {
     is_live: Boolean(payload.is_live),
     live_activated_at: payload.live_activated_at ?? null,
     time_limit_seconds: payload.time_limit_seconds ?? null,
-    submissions_closed: Boolean(payload.submissions_closed)
+    submissions_closed: Boolean(payload.submissions_closed),
+    open_for_reattempt: Boolean(payload.open_for_reattempt)
   });
 }
 
@@ -334,11 +335,13 @@ function notifyQuestionSubmissionsClosed(sessionCode, question) {
   });
 }
 
-function notifyQuestionReattemptOpened(sessionCode, questionId, questionText) {
+function notifyQuestionReattemptOpened(sessionCode, questionId, questionText, extra = {}) {
   broadcastToSession(sessionCode, {
     type: "question_reattempt_opened",
     question_id: Number(questionId),
-    question_text: questionText || ""
+    question_text: questionText || "",
+    live_activated_at: extra.live_activated_at ?? null,
+    time_limit_seconds: extra.time_limit_seconds ?? null
   });
 }
 
