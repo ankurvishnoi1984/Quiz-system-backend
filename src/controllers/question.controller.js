@@ -327,6 +327,8 @@ async function openForReattempt(req, res) {
         notifyQuestionLeaderboardVisibility(session.session_code, otherId, false);
       }
       notifyQuestionChange(session.session_code, buildQuestionChangePayload(question, true));
+      notifyAnswerRevealed(session.session_code, question.question_id, false, []);
+      notifyQuestionLeaderboardVisibility(session.session_code, question.question_id, false);
       notifyQuestionReattemptOpened(
         session.session_code,
         question.question_id,

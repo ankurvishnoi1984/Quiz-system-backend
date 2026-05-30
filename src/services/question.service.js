@@ -562,6 +562,8 @@ async function openQuestionForReattempt({ questionId, user }) {
   question.is_live = true;
   question.open_for_reattempt = true;
   question.submissions_closed = false;
+  question.answer_revealed = false;
+  question.show_leaderboard = false;
   question.live_activated_at = new Date();
   await question.save();
 
