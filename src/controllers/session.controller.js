@@ -8,6 +8,7 @@ const {
   archiveSession,
   transitionSessionStatus,
   getSessionByCode,
+  getSessionJoinBlockInfo,
   joinSession,
   listSessionParticipants,
   getSessionQr
@@ -160,6 +161,7 @@ function lifecycleAction(action) {
 async function lookupByCode(req, res) {
   try {
     const session = await getSessionByCode(req.params.code);
+    const joinBlock = await getSessionJoinBlockInfo(session);
     return successResponse(
       res,
       {
@@ -174,7 +176,9 @@ async function lookupByCode(req, res) {
           leaderboard_enabled: Boolean(session.leaderboard_enabled),
           show_question_leaderboard: Boolean(session.show_question_leaderboard),
           participant_navigation_enabled: session.participant_navigation_enabled !== false,
-          allow_late_join: Boolean(session.allow_late_join)
+          allow_late_join: Boolean(session.allow_late_join),
+          join_blocked: Boolean(joinBlock.blocked),
+          join_blocked_message: joinBlock.message || null
         }
       },
       "Session found",

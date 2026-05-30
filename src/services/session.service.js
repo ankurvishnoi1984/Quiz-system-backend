@@ -10,6 +10,10 @@ const {
   Response
 } = require("../models");
 const { signAccessToken } = require("../utils/jwt");
+const {
+  isMultiNavTimedJoinClosed,
+  MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE
+} = require("../utils/sessionFlags");
 const { notifySessionProgress, notifyParticipantJoined } = require("./websocket.service");
 
 function canAccessDepartment(user, department) {
@@ -445,6 +449,39 @@ async function listSessionParticipants({ sessionId, user }) {
   }));
 }
 
+async function getSessionJoinBlockInfo(session) {
+  if (session.status !== "live" && session.status !== "paused") {
+    return { blocked: false, message: null };
+  }
+
+  const questions = await Question.findAll({
+    where: { session_id: session.session_id },
+    attributes: ["question_id", "display_order", "time_limit_seconds", "is_live", "live_activated_at"],
+    order: [
+      ["display_order", "ASC"],
+      ["question_id", "ASC"]
+    ]
+  });
+
+  if (!isMultiNavTimedJoinClosed(session, questions)) {
+    return { blocked: false, message: null };
+  }
+
+  return {
+    blocked: true,
+    message: MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE
+  };
+}
+
+async function assertNewParticipantMayJoin(session) {
+  const { blocked, message } = await getSessionJoinBlockInfo(session);
+  if (!blocked) return;
+
+  const error = new Error(message || MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE);
+  error.statusCode = 403;
+  throw error;
+}
+
 async function joinSession({ code, payload }) {
   const session = await getSessionByCode(code);
 
@@ -488,6 +525,8 @@ async function joinSession({ code, payload }) {
       return result;
     }
   }
+
+  await assertNewParticipantMayJoin(session);
 
   const participant = await Participant.create({
     session_id: session.session_id,
@@ -536,6 +575,7 @@ module.exports = {
   archiveSession,
   transitionSessionStatus,
   getSessionByCode,
+  getSessionJoinBlockInfo,
   joinSession,
   listSessionParticipants,
   getSessionQr
