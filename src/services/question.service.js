@@ -361,7 +361,7 @@ function getCorrectOptionIds(question) {
     .map((option) => Number(option.option_id));
 }
 
-function formatQuestionForParticipant(question) {
+function formatQuestionForParticipant(question, { participantSubmitted = false } = {}) {
   const plain = question.toJSON ? question.toJSON() : { ...question };
   const revealed = Boolean(plain.answer_revealed);
   const rawOptions = plain.QuestionOptions || plain.question_options || [];
@@ -373,11 +373,12 @@ function formatQuestionForParticipant(question) {
     display_order: option.display_order
   }));
 
-  const correct_option_ids = revealed
-    ? getQuestionOptions(plain)
-        .filter((option) => Boolean(option.is_correct))
-        .map((option) => Number(option.option_id))
-    : [];
+  const correct_option_ids =
+    revealed && participantSubmitted
+      ? getQuestionOptions(plain)
+          .filter((option) => Boolean(option.is_correct))
+          .map((option) => Number(option.option_id))
+      : [];
 
   return {
     ...plain,
