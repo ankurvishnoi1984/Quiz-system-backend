@@ -491,6 +491,62 @@ async function closeQuestionSubmissions({ questionId, user }) {
   });
 }
 
+async function activateAllQuestionsForSession({ sessionId, user }) {
+  const session = await getSessionForQuestionFlow(sessionId);
+  assertScopeAccess(user, session);
+
+  if (session.status !== "live" && session.status !== "paused") {
+    const error = new Error("Questions can be activated only while the session is live");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isParticipantNavigationEnabled(session)) {
+    const error = new Error(
+      "Activate all questions is only available in multiple active question mode"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const sessionQuestions = await Question.findAll({
+    where: { session_id: sessionId },
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+
+  if (!sessionQuestions.length) {
+    const error = new Error("No questions in this session");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const toActivate = sessionQuestions.filter((q) => !q.is_live);
+  if (!toActivate.length) {
+    const error = new Error("All questions are already active");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const now = new Date();
+  const questionIds = toActivate.map((q) => q.question_id);
+  await Question.update(
+    {
+      is_live: true,
+      live_activated_at: now,
+      submissions_closed: false,
+      open_for_reattempt: false,
+      answer_revealed: false,
+      show_leaderboard: false
+    },
+    { where: { session_id: sessionId, question_id: questionIds } }
+  );
+
+  return Question.findAll({
+    where: { question_id: questionIds },
+    include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
+  });
+}
+
 async function closeAllQuestionSubmissionsForSession({ sessionId, user }) {
   const session = await getSessionForQuestionFlow(sessionId);
   assertScopeAccess(user, session);
@@ -586,6 +642,7 @@ module.exports = {
   setQuestionLeaderboardVisibility,
   closeQuestionSubmissions,
   closeAllQuestionSubmissionsForSession,
+  activateAllQuestionsForSession,
   openQuestionForReattempt,
   getCorrectOptionIds,
   formatQuestionForParticipant

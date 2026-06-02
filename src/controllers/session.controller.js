@@ -25,7 +25,10 @@ const {
   notifyAllQuestionsSubmissionsClosed
 } = require("../services/websocket.service");
 const { buildSessionLeaderboard } = require("../services/response.service");
-const { closeAllQuestionSubmissionsForSession } = require("../services/question.service");
+const {
+  activateAllQuestionsForSession,
+  closeAllQuestionSubmissionsForSession
+} = require("../services/question.service");
 const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
@@ -256,6 +259,46 @@ function buildClosedQuestionChangePayload(question) {
   };
 }
 
+function buildActivatedQuestionChangePayload(question) {
+  return {
+    question_id: question.question_id,
+    is_live: true,
+    live_activated_at: question.live_activated_at ?? null,
+    time_limit_seconds: question.time_limit_seconds ?? null,
+    submissions_closed: false,
+    open_for_reattempt: false
+  };
+}
+
+async function activateAllQuestions(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    const questions = await activateAllQuestionsForSession({
+      sessionId,
+      user: req.user
+    });
+    const session = await Session.findByPk(sessionId, {
+      attributes: ["session_code"]
+    });
+    if (session?.session_code) {
+      for (const question of questions) {
+        notifyQuestionChange(
+          session.session_code,
+          buildActivatedQuestionChangePayload(question)
+        );
+      }
+    }
+    return successResponse(
+      res,
+      { questions, activated_count: questions.length },
+      "All questions activated",
+      200
+    );
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function closeAllQuestions(req, res) {
   try {
     const sessionId = Number(req.params.sessionId);
@@ -303,5 +346,6 @@ module.exports = {
   lookupByCode,
   joinByCode,
   qr,
-  closeAllQuestions
+  closeAllQuestions,
+  activateAllQuestions
 };
