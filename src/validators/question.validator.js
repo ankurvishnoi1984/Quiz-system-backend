@@ -26,6 +26,14 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
+  if (payload?.question_type === "ranking") {
+    if (!Array.isArray(payload.options) || payload.options.length < 2) {
+      errors.push("ranking options must include at least 2 entries");
+    } else if (payload.options.length > 10) {
+      errors.push("ranking options cannot exceed 10 entries");
+    }
+  }
+
   return errors;
 }
 

@@ -383,6 +383,17 @@ function notifyLeaderboard(sessionCode, payload) {
   });
 }
 
+function notifyRankingResponseSubmitted(sessionCode, payload) {
+  if (!sessionCode || !payload) return;
+  broadcastToSession(sessionCode, {
+    type: "ranking-response-submitted",
+    questionId: Number(payload.questionId),
+    totalResponses: Number(payload.totalResponses || 0),
+    rankings: payload.rankings || [],
+    analytics: payload.analytics || null
+  });
+}
+
 function notifySessionSettings(sessionCode, settings) {
   broadcastToSession(sessionCode, {
     type: "session_settings_updated",
@@ -436,6 +447,7 @@ module.exports = {
   notifyAnswerRevealed,
   notifyQuestionLeaderboardVisibility,
   notifyLeaderboard,
+  notifyRankingResponseSubmitted,
   notifySessionSettings,
   notifyParticipantJoined,
   notifySessionProgress,

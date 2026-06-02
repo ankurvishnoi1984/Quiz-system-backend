@@ -8,7 +8,7 @@ const {
   Client
 } = require("../models");
 const { formatQuestionForParticipant } = require("./question.service");
-const { notifyLeaderboard } = require("./websocket.service");
+const { notifyLeaderboard, notifyRankingResponseSubmitted } = require("./websocket.service");
 
 function participantDisplayName(participant, participantId) {
   const p = participant?.participant ?? participant?.Participant ?? participant;
@@ -31,6 +31,100 @@ function toLeaderboardEntry(participantId, displayName, score) {
     nickname: displayName,
     name: displayName,
     score
+  };
+}
+
+function buildRankingAnalytics(question, responses) {
+  const options = (question.QuestionOptions || question.question_options || [])
+    .map((opt) => ({
+      option_id: Number(opt.option_id),
+      option_text: opt.option_text
+    }))
+    .filter((opt) => Number.isFinite(opt.option_id));
+  if (!options.length) return null;
+
+  const optionMap = new Map();
+  options.forEach((opt) => {
+    optionMap.set(opt.option_id, {
+      optionId: opt.option_id,
+      optionText: opt.option_text,
+      totalScore: 0,
+      totalRankSum: 0,
+      totalResponses: 0,
+      firstPlaceCount: 0,
+      secondPlaceCount: 0,
+      thirdPlaceCount: 0,
+      lastPlaceCount: 0,
+      rankCounts: {}
+    });
+  });
+
+  const totalOptions = options.length;
+  let validResponses = 0;
+  for (const row of responses || []) {
+    const order = Array.isArray(row.ranking_order) ? row.ranking_order.map(Number) : [];
+    if (order.length !== totalOptions) continue;
+    const uniqueOrder = [...new Set(order)];
+    if (uniqueOrder.length !== totalOptions) continue;
+    if (!uniqueOrder.every((id) => optionMap.has(id))) continue;
+    validResponses += 1;
+
+    uniqueOrder.forEach((optionId, idx) => {
+      const rankPosition = idx + 1;
+      const score = totalOptions - rankPosition + 1;
+      const bucket = optionMap.get(optionId);
+      bucket.totalScore += score;
+      bucket.totalRankSum += rankPosition;
+      bucket.totalResponses += 1;
+      bucket.rankCounts[rankPosition] = (bucket.rankCounts[rankPosition] || 0) + 1;
+      if (rankPosition === 1) bucket.firstPlaceCount += 1;
+      if (rankPosition === 2) bucket.secondPlaceCount += 1;
+      if (rankPosition === 3) bucket.thirdPlaceCount += 1;
+      if (rankPosition === totalOptions) bucket.lastPlaceCount += 1;
+    });
+  }
+
+  const rankings = Array.from(optionMap.values())
+    .map((row) => {
+      const averageScore = row.totalResponses
+        ? Number((row.totalScore / row.totalResponses).toFixed(2))
+        : 0;
+      const averageRank = row.totalResponses
+        ? Number((row.totalRankSum / row.totalResponses).toFixed(2))
+        : 0;
+      const rankDistributionPercentage = {};
+      for (let rank = 1; rank <= totalOptions; rank += 1) {
+        const rankCount = Number(row.rankCounts[rank] || 0);
+        rankDistributionPercentage[rank] = validResponses
+          ? Number(((rankCount / validResponses) * 100).toFixed(2))
+          : 0;
+      }
+      return {
+        optionId: row.optionId,
+        optionText: row.optionText,
+        totalScore: row.totalScore,
+        averageScore,
+        averageRank,
+        firstPlaceCount: row.firstPlaceCount,
+        secondPlaceCount: row.secondPlaceCount,
+        thirdPlaceCount: row.thirdPlaceCount,
+        lastPlaceCount: row.lastPlaceCount,
+        rankDistributionPercentage
+      };
+    })
+    .sort((a, b) => {
+      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+      if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
+      if (a.averageRank !== b.averageRank) return a.averageRank - b.averageRank;
+      if (b.firstPlaceCount !== a.firstPlaceCount) return b.firstPlaceCount - a.firstPlaceCount;
+      return a.optionText.localeCompare(b.optionText);
+    })
+    .map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+  return {
+    totalResponses: validResponses,
+    totalOptions,
+    rankings
   };
 }
 
@@ -164,6 +258,27 @@ async function submitResponse({ participant, input }) {
     response_time_ms: input.response_time_ms || null
   };
 
+  if (question.question_type === "ranking") {
+    const optionIds = (question.QuestionOptions || question.question_options || [])
+      .map((opt) => Number(opt.option_id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const rankingOrder = Array.isArray(input.ranking_order) ? input.ranking_order.map(Number) : [];
+    const uniqueOrder = [...new Set(rankingOrder)];
+    if (
+      optionIds.length < 2 ||
+      uniqueOrder.length !== optionIds.length ||
+      !optionIds.every((id) => uniqueOrder.includes(id))
+    ) {
+      const error = new Error("Ranking responses must include every option exactly once");
+      error.statusCode = 400;
+      throw error;
+    }
+    responsePayload.option_id = null;
+    responsePayload.text_response = null;
+    responsePayload.rating_value = null;
+    responsePayload.ranking_order = uniqueOrder;
+  }
+
   if (responsePayload.option_id) {
     const option = await QuestionOption.findByPk(Number(responsePayload.option_id));
     if (!option || Number(option.question_id) !== Number(question.question_id)) {
@@ -224,6 +339,22 @@ async function submitResponse({ participant, input }) {
     if (payload.leaderboard.length || payload.question_leaderboard?.length) {
       notifyLeaderboard(session.session_code, payload);
     }
+
+    if (question.question_type === "ranking") {
+      const rankingResponses = await Response.findAll({
+        where: { question_id: question.question_id },
+        attributes: ["ranking_order"]
+      });
+      const analytics = buildRankingAnalytics(question, rankingResponses);
+      if (analytics) {
+        notifyRankingResponseSubmitted(session.session_code, {
+          questionId: question.question_id,
+          totalResponses: analytics.totalResponses,
+          rankings: analytics.rankings,
+          analytics
+        });
+      }
+    }
   }
 
   return { response: saved, created };
@@ -250,7 +381,9 @@ function aggregateWordCloudCounts(responses) {
 }
 
 async function getQuestionResults({ questionId, user }) {
-  const question = await Question.findByPk(questionId, { include: [{ model: Session }] });
+  const question = await Question.findByPk(questionId, {
+    include: [{ model: Session }, { model: QuestionOption }]
+  });
   if (!question) {
     const error = new Error("Question not found");
     error.statusCode = 404;
@@ -288,7 +421,9 @@ async function getQuestionResults({ questionId, user }) {
               responses.reduce((sum, row) => sum + Number(row.rating_value || 0), 0) / total
             ).toFixed(2)
           )
-        : null
+        : null,
+    ranking_analytics:
+      question.question_type === "ranking" ? buildRankingAnalytics(question, responses) : null
   };
 }
 
