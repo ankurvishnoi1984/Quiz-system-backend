@@ -307,6 +307,195 @@ async function getSessionSummaryReport({ sessionId, user }) {
   };
 }
 
+function participantDisplayName(participant, participantId) {
+  if (!participant) return `Participant ${participantId}`;
+  if (participant.is_anonymous) return "Anonymous";
+  const nickname = String(participant.nickname || "").trim();
+  if (nickname) return nickname;
+  const email = String(participant.email || "").trim();
+  if (email) return email;
+  return `Participant ${participantId}`;
+}
+
+function buildOptionTextMap(options) {
+  const map = new Map();
+  for (const opt of options || []) {
+    map.set(Number(opt.option_id), opt.option_text);
+  }
+  return map;
+}
+
+function formatResponseAnswer(response, questionType, optionMap) {
+  if (response.option_id != null && optionMap.has(Number(response.option_id))) {
+    return optionMap.get(Number(response.option_id));
+  }
+  if (response.text_response) return response.text_response;
+  if (response.rating_value != null) return String(response.rating_value);
+  if (Array.isArray(response.ranking_order) && response.ranking_order.length) {
+    return response.ranking_order
+      .map((id) => optionMap.get(Number(id)) || `#${id}`)
+      .join(" > ");
+  }
+  return "—";
+}
+
+function buildRatingDistribution(questionResponses) {
+  const total = questionResponses.length;
+  const counts = new Map();
+  for (const row of questionResponses) {
+    const value = row.rating_value != null ? String(row.rating_value) : "—";
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([value, count]) => ({
+      value,
+      count,
+      percent: total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0
+    }));
+}
+
+function buildWordFrequency(questionResponses) {
+  const total = questionResponses.length;
+  return aggregateWordCloudCounts(questionResponses).map((row) => ({
+    word: row.text,
+    count: row.count,
+    percent: total > 0 ? Number(((row.count / total) * 100).toFixed(2)) : 0
+  }));
+}
+
+function avgResponseTimeSeconds(questionResponses) {
+  const timed = questionResponses
+    .map((row) => Number(row.response_time_ms))
+    .filter((ms) => Number.isFinite(ms) && ms >= 0);
+  if (!timed.length) return null;
+  return Number((timed.reduce((sum, ms) => sum + ms, 0) / timed.length / 1000).toFixed(2));
+}
+
+function buildFastestResponders(questionResponses, participantsById) {
+  return questionResponses
+    .filter((row) => Number.isFinite(Number(row.response_time_ms)) && Number(row.response_time_ms) >= 0)
+    .sort((a, b) => Number(a.response_time_ms) - Number(b.response_time_ms))
+    .slice(0, 3)
+    .map((row) => {
+      const participant = participantsById.get(Number(row.participant_id));
+      const responseTimeMs = Number(row.response_time_ms);
+      return {
+        participant_id: row.participant_id,
+        nickname: participantDisplayName(participant, row.participant_id),
+        response_time_ms: responseTimeMs,
+        response_time_seconds: Number((responseTimeMs / 1000).toFixed(2))
+      };
+    });
+}
+
+function correctRatePercent(question, questionResponses) {
+  if (!question.is_quiz_mode || !questionResponses.length) return null;
+  const scored = questionResponses.filter((row) => row.is_correct != null);
+  if (!scored.length) return null;
+  const correct = scored.filter((row) => row.is_correct).length;
+  return Number(((correct / scored.length) * 100).toFixed(2));
+}
+
+async function getSessionQuestionsReport({ sessionId, user }) {
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+
+  const numericSessionId = Number(sessionId);
+
+  const [questions, participants, responses] = await Promise.all([
+    Question.findAll({
+      where: { session_id: numericSessionId },
+      include: [{ model: QuestionOption }],
+      order: [["display_order", "ASC"], ["question_id", "ASC"]]
+    }),
+    Participant.findAll({
+      where: { session_id: numericSessionId },
+      attributes: ["participant_id", "nickname", "email", "is_anonymous"]
+    }),
+    Response.findAll({
+      where: { session_id: numericSessionId },
+      include: [
+        {
+          model: Participant,
+          attributes: ["participant_id", "nickname", "email", "is_anonymous"]
+        },
+        { model: QuestionOption, attributes: ["option_id", "option_text"] }
+      ],
+      order: [["submitted_at", "ASC"]]
+    })
+  ]);
+
+  const totalParticipants = participants.length;
+  const participantsById = new Map(
+    participants.map((participant) => [Number(participant.participant_id), participant])
+  );
+
+  const questionReports = questions.map((question, index) => {
+    const options = question.QuestionOptions || question.question_options || [];
+    const optionMap = buildOptionTextMap(options);
+    const questionResponses = responses.filter(
+      (row) => Number(row.question_id) === Number(question.question_id)
+    );
+    const responseCount = questionResponses.length;
+    const responseRatePercent =
+      totalParticipants > 0
+        ? Number(((responseCount / totalParticipants) * 100).toFixed(2))
+        : 0;
+
+    const responseRows = questionResponses.map((row) => {
+      const participant = row.Participant || row.participant || participantsById.get(Number(row.participant_id));
+      return {
+        participant_id: row.participant_id,
+        nickname: participantDisplayName(participant, row.participant_id),
+        answer: formatResponseAnswer(row, question.question_type, optionMap),
+        is_correct: row.is_correct,
+        response_time_ms: row.response_time_ms != null ? Number(row.response_time_ms) : null,
+        submitted_at: row.submitted_at
+      };
+    });
+
+    return {
+      question_id: question.question_id,
+      question_index: index + 1,
+      question_text: question.question_text,
+      question_type: question.question_type,
+      is_quiz_mode: Boolean(question.is_quiz_mode),
+      response_count: responseCount,
+      response_rate_percent: responseRatePercent,
+      correct_rate_percent: correctRatePercent(question, questionResponses),
+      avg_response_time_seconds: avgResponseTimeSeconds(questionResponses),
+      fastest_responders: buildFastestResponders(questionResponses, participantsById),
+      rating_distribution:
+        question.question_type === "rating" ? buildRatingDistribution(questionResponses) : null,
+      word_frequency:
+        question.question_type === "word_cloud" ? buildWordFrequency(questionResponses) : null,
+      responses: responseRows
+    };
+  });
+
+  return {
+    session: {
+      session_id: session.session_id,
+      title: session.title,
+      status: session.status
+    },
+    total_participants: totalParticipants,
+    questions: questionReports,
+    summary_rows: questionReports.map((question) => ({
+      question_id: question.question_id,
+      question_index: question.question_index,
+      question_text: question.question_text,
+      question_type: question.question_type,
+      response_count: question.response_count,
+      response_rate_percent: question.response_rate_percent,
+      correct_rate_percent: question.correct_rate_percent,
+      avg_response_time_seconds: question.avg_response_time_seconds
+    }))
+  };
+}
+
 module.exports = {
-  getSessionSummaryReport
+  getSessionSummaryReport,
+  getSessionQuestionsReport
 };

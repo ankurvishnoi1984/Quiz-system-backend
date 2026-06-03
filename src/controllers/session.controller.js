@@ -29,7 +29,7 @@ const {
   activateAllQuestionsForSession,
   closeAllQuestionSubmissionsForSession
 } = require("../services/question.service");
-const { getSessionSummaryReport } = require("../services/session-report.service");
+const { getSessionSummaryReport, getSessionQuestionsReport } = require("../services/session-report.service");
 const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
@@ -332,6 +332,17 @@ async function closeAllQuestions(req, res) {
   }
 }
 
+async function sessionQuestionsReport(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) return errorResponse(res, "sessionId must be a number", 400);
+    const report = await getSessionQuestionsReport({ sessionId, user: req.user });
+    return successResponse(res, { report }, "Session questions report fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function sessionSummaryReport(req, res) {
   try {
     const sessionId = Number(req.params.sessionId);
@@ -345,6 +356,7 @@ async function sessionSummaryReport(req, res) {
 
 module.exports = {
   sessionSummaryReport,
+  sessionQuestionsReport,
   listByDepartment,
   createForDepartment,
   detail,
