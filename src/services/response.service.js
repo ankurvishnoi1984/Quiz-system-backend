@@ -580,5 +580,9 @@ module.exports = {
   listParticipantQuestionsService,
   getParticipantSessionLeaderboard,
   buildQuestionLeaderboard,
-  buildSessionLeaderboard
+  buildSessionLeaderboard,
+  buildRankingAnalytics,
+  aggregateWordCloudCounts,
+  getSessionForAccess,
+  assertStaffAccess
 };
