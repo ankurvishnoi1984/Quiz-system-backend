@@ -24,6 +24,11 @@ router.post(
 );
 
 router.get(
+  "/sessions/:sessionId/report/participants",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.sessionParticipantsReport
+);
+router.get(
   "/sessions/:sessionId/report/questions",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.sessionQuestionsReport

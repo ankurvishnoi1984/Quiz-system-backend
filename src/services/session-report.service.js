@@ -495,7 +495,138 @@ async function getSessionQuestionsReport({ sessionId, user }) {
   };
 }
 
+async function getSessionParticipantsReport({ sessionId, user }) {
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+
+  const numericSessionId = Number(sessionId);
+
+  const [questions, participants, responses] = await Promise.all([
+    Question.findAll({
+      where: { session_id: numericSessionId },
+      include: [{ model: QuestionOption }],
+      order: [["display_order", "ASC"], ["question_id", "ASC"]]
+    }),
+    Participant.findAll({
+      where: { session_id: numericSessionId },
+      attributes: ["participant_id", "nickname", "email", "is_anonymous", "score", "joined_at"]
+    }),
+    Response.findAll({
+      where: { session_id: numericSessionId },
+      include: [
+        {
+          model: Participant,
+          attributes: ["participant_id", "nickname", "email", "is_anonymous", "score"]
+        },
+        { model: QuestionOption, attributes: ["option_id", "option_text"] }
+      ],
+      order: [["submitted_at", "ASC"]]
+    })
+  ]);
+
+  const questionsById = new Map(
+    questions.map((question) => [Number(question.question_id), question])
+  );
+
+  const participantStats = new Map();
+  for (const participant of participants) {
+    const participantId = Number(participant.participant_id);
+    participantStats.set(participantId, {
+      participant_id: participantId,
+      nickname: participantDisplayName(participant, participantId),
+      questions_answered: 0,
+      correct_count: 0,
+      total_score: Number(participant.score || 0),
+      response_times_ms: []
+    });
+  }
+
+  const responseRows = responses.map((row) => {
+    const question = questionsById.get(Number(row.question_id));
+    const options = question?.QuestionOptions || question?.question_options || [];
+    const optionMap = buildOptionTextMap(options);
+    const participant = row.Participant || row.participant;
+    const participantId = Number(row.participant_id);
+
+    let stats = participantStats.get(participantId);
+    if (!stats) {
+      stats = {
+        participant_id: participantId,
+        nickname: participantDisplayName(participant, participantId),
+        questions_answered: 0,
+        correct_count: 0,
+        total_score: Number(participant?.score || 0),
+        response_times_ms: []
+      };
+      participantStats.set(participantId, stats);
+    }
+
+    stats.questions_answered += 1;
+    if (row.is_correct === true) stats.correct_count += 1;
+
+    const responseTimeMs = row.response_time_ms != null ? Number(row.response_time_ms) : null;
+    if (Number.isFinite(responseTimeMs) && responseTimeMs >= 0) {
+      stats.response_times_ms.push(responseTimeMs);
+    }
+
+    return {
+      participant_id: participantId,
+      nickname: stats.nickname,
+      question_id: row.question_id,
+      question_text: question?.question_text || "",
+      answer: formatResponseAnswer(row, question?.question_type, optionMap),
+      is_correct: row.is_correct,
+      points_earned: Number(row.points_earned || 0),
+      response_time_ms: responseTimeMs,
+      submitted_at: row.submitted_at
+    };
+  });
+
+  const summaryRows = Array.from(participantStats.values()).map((stats) => {
+    const avgMs = stats.response_times_ms.length
+      ? stats.response_times_ms.reduce((sum, ms) => sum + ms, 0) / stats.response_times_ms.length
+      : null;
+    return {
+      participant_id: stats.participant_id,
+      nickname: stats.nickname,
+      questions_answered: stats.questions_answered,
+      correct_count: stats.correct_count,
+      total_score: stats.total_score,
+      avg_response_time_seconds: avgMs != null ? Number((avgMs / 1000).toFixed(2)) : null,
+      avg_response_time_ms: avgMs != null ? Math.round(avgMs) : null
+    };
+  });
+
+  const sortParticipants = (a, b) => {
+    if (b.total_score !== a.total_score) return b.total_score - a.total_score;
+    if (b.correct_count !== a.correct_count) return b.correct_count - a.correct_count;
+    if (b.questions_answered !== a.questions_answered) return b.questions_answered - a.questions_answered;
+    const aTime = a.avg_response_time_seconds ?? Number.POSITIVE_INFINITY;
+    const bTime = b.avg_response_time_seconds ?? Number.POSITIVE_INFINITY;
+    if (aTime !== bTime) return aTime - bTime;
+    return a.nickname.localeCompare(b.nickname);
+  };
+
+  const leaderboard = [...summaryRows]
+    .sort(sortParticipants)
+    .slice(0, 20)
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+
+  return {
+    session: {
+      session_id: session.session_id,
+      title: session.title,
+      status: session.status
+    },
+    total_participants: participants.length,
+    leaderboard,
+    summary_rows: [...summaryRows].sort(sortParticipants),
+    response_rows: responseRows
+  };
+}
+
 module.exports = {
   getSessionSummaryReport,
-  getSessionQuestionsReport
+  getSessionQuestionsReport,
+  getSessionParticipantsReport
 };
