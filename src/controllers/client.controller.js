@@ -4,6 +4,7 @@ const {
   getClients,
   getClientById
 } = require("../services/client.service");
+const { getClientReport } = require("../services/client-report.service");
 const { validateCreateClientPayload } = require("../validators/client.validator");
 
 async function create(req, res) {
@@ -29,6 +30,24 @@ async function list(req, res) {
   }
 }
 
+async function report(req, res) {
+  try {
+    const clientId = Number(req.params.clientId);
+    if (Number.isNaN(clientId)) return errorResponse(res, "clientId must be a number", 400);
+
+    const reportData = await getClientReport({
+      clientId,
+      user: req.user,
+      from: req.query.from,
+      to: req.query.to
+    });
+
+    return successResponse(res, { report: reportData }, "Client report fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function detail(req, res) {
   try {
     const client = await getClientById(req.params.clientId);
@@ -41,5 +60,6 @@ async function detail(req, res) {
 module.exports = {
   create,
   list,
-  detail
+  detail,
+  report
 };

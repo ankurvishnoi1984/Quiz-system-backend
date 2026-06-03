@@ -9,6 +9,11 @@ router.use(authMiddleware);
 
 router.post("/", authorizeRoles("super_admin"), clientController.create);
 router.get("/", authorizeRoles("super_admin"), clientController.list);
+router.get(
+  "/:clientId/report",
+  authorizeRoles("super_admin"),
+  clientController.report
+);
 router.get("/:clientId", authorizeRoles("super_admin"), clientController.detail);
 
 module.exports = router;
