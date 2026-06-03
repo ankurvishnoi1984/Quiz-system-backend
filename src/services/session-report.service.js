@@ -625,8 +625,96 @@ async function getSessionParticipantsReport({ sessionId, user }) {
   };
 }
 
+async function getSessionQaReport({ sessionId, user }) {
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+
+  const numericSessionId = Number(sessionId);
+
+  const qaQuestions = await QaQuestion.findAll({
+    where: { session_id: numericSessionId },
+    include: [{ model: Participant, attributes: ["participant_id", "nickname", "email", "is_anonymous"] }],
+    order: [["upvotes", "DESC"], ["created_at", "DESC"]]
+  });
+
+  const totalAsked = qaQuestions.length;
+  const approvedStatuses = new Set(["approved", "answered", "pinned"]);
+  const approvedCount = qaQuestions.filter((row) => approvedStatuses.has(row.status)).length;
+  const approvalRatePercent =
+    totalAsked > 0 ? Number(((approvedCount / totalAsked) * 100).toFixed(2)) : 0;
+
+  const unansweredCount = qaQuestions.filter(
+    (row) => !["answered", "rejected"].includes(row.status)
+  ).length;
+
+  const topQuestions = qaQuestions
+    .filter((row) => row.status !== "rejected")
+    .slice(0, 5)
+    .map((row) => ({
+      qa_id: row.qa_id,
+      question_text: row.question_text,
+      upvotes: row.upvotes || 0,
+      status: row.status
+    }));
+
+  const anonymousCount = qaQuestions.filter((row) => Boolean(row.is_anonymous)).length;
+  const namedCount = totalAsked - anonymousCount;
+  const submissionRatio = {
+    anonymous: anonymousCount,
+    named: namedCount,
+    anonymous_percent:
+      totalAsked > 0 ? Number(((anonymousCount / totalAsked) * 100).toFixed(2)) : 0,
+    named_percent: totalAsked > 0 ? Number(((namedCount / totalAsked) * 100).toFixed(2)) : 0
+  };
+
+  const mapSubmitter = (row) => {
+    if (row.is_anonymous) return "Anonymous";
+    const participant = row.Participant || row.participant;
+    return participantDisplayName(participant, row.participant_id);
+  };
+
+  const qaLog = qaQuestions.map((row) => ({
+    qa_id: row.qa_id,
+    question_text: row.question_text,
+    submitter: mapSubmitter(row),
+    upvotes: row.upvotes || 0,
+    status: row.status,
+    is_anonymous: Boolean(row.is_anonymous),
+    submitted_at: row.created_at,
+    answered_at: row.answered_at
+  }));
+
+  const moderationQuestions = qaQuestions
+    .filter((row) => row.status !== "rejected")
+    .map((row) => ({
+      qa_id: row.qa_id,
+      question_text: row.question_text,
+      status: row.status,
+      upvotes: row.upvotes || 0,
+      is_pinned: Boolean(row.is_pinned)
+    }));
+
+  return {
+    session: {
+      session_id: session.session_id,
+      title: session.title,
+      status: session.status
+    },
+    summary: {
+      total_asked: totalAsked,
+      approval_rate_percent: approvalRatePercent,
+      unanswered_count: unansweredCount
+    },
+    top_questions: topQuestions,
+    submission_ratio: submissionRatio,
+    qa_log: qaLog,
+    moderation_questions: moderationQuestions
+  };
+}
+
 module.exports = {
   getSessionSummaryReport,
   getSessionQuestionsReport,
-  getSessionParticipantsReport
+  getSessionParticipantsReport,
+  getSessionQaReport
 };
