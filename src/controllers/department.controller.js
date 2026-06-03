@@ -4,6 +4,7 @@ const {
   getDepartments,
   getDepartmentById
 } = require("../services/department.service");
+const { getDepartmentReport } = require("../services/department-report.service");
 const {
   validateCreateDepartmentPayload
 } = require("../validators/department.validator");
@@ -38,6 +39,24 @@ async function list(req, res) {
   }
 }
 
+async function report(req, res) {
+  try {
+    const deptId = Number(req.params.departmentId);
+    if (Number.isNaN(deptId)) return errorResponse(res, "departmentId must be a number", 400);
+
+    const reportData = await getDepartmentReport({
+      deptId,
+      user: req.user,
+      from: req.query.from,
+      to: req.query.to
+    });
+
+    return successResponse(res, { report: reportData }, "Department report fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function detail(req, res) {
   try {
     const department = await getDepartmentById(req.params.departmentId);
@@ -50,5 +69,6 @@ async function detail(req, res) {
 module.exports = {
   create,
   list,
-  detail
+  detail,
+  report
 };

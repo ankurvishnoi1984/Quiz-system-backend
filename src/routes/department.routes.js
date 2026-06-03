@@ -18,6 +18,11 @@ router.get(
   departmentController.list
 );
 router.get(
+  "/:departmentId/report",
+  authorizeRoles("super_admin", "client_admin", "dept_admin"),
+  departmentController.report
+);
+router.get(
   "/:departmentId",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   departmentController.detail
