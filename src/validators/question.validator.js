@@ -21,6 +21,25 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
+  if (payload?.question_type === "survey") {
+    const allowed = ["mcq", "poll", "rating", "open_text", "word_cloud", "ranking"];
+    if (!payload?.survey_subtype || !allowed.includes(payload.survey_subtype)) {
+      errors.push("survey must include a valid survey_subtype");
+    }
+    if (payload.survey_subtype === "mcq" || payload.survey_subtype === "poll") {
+      if (!Array.isArray(payload.options) || payload.options.length < 2) {
+        errors.push("survey mcq/poll options must include at least 2 entries");
+      }
+    }
+    if (payload.survey_subtype === "ranking") {
+      if (!Array.isArray(payload.options) || payload.options.length < 2) {
+        errors.push("survey ranking options must include at least 2 entries");
+      } else if (payload.options.length > 10) {
+        errors.push("survey ranking options cannot exceed 10 entries");
+      }
+    }
+  }
+
   if (payload?.question_type === "true_false") {
     if (!Array.isArray(payload.options) || payload.options.length !== 2) {
       errors.push("true_false must include exactly 2 options (True and False)");

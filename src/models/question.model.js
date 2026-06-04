@@ -21,6 +21,7 @@ const Question = sequelize.define(
       type: DataTypes.ENUM(
         "mcq",
         "poll",
+        "survey",
         "word_cloud",
         "rating",
         "open_text",
@@ -81,6 +82,19 @@ const Question = sequelize.define(
     },
     rating_max_label: {
       type: DataTypes.STRING(50),
+      allowNull: true
+    },
+    survey_subtype: {
+      type: DataTypes.ENUM(
+        "mcq",
+        "poll",
+        "word_cloud",
+        "rating",
+        "open_text",
+        "true_false",
+        "ranking",
+        "fill_blank"
+      ),
       allowNull: true
     },
     is_live: {

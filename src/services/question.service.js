@@ -119,6 +119,8 @@ async function createQuestion({ sessionId, input, user }) {
   const nextOrder = (await Question.count({ where: { session_id: sessionId } })) + 1;
 
   const isPoll = input.question_type === "poll";
+  const isSurvey = input.question_type === "survey";
+  const isNonScored = isPoll || isSurvey;
 
   const question = await Question.create({
     session_id: session.session_id,
@@ -128,10 +130,11 @@ async function createQuestion({ sessionId, input, user }) {
     media_url: input.media_url || null,
     media_type: input.media_type || null,
     media_thumbnail_url: input.media_thumbnail_url || null,
-    is_quiz_mode: isPoll ? false : input.is_quiz_mode ?? false,
-    points_value: isPoll ? 0 : input.points_value || 10,
-    time_limit_seconds: input.time_limit_seconds || null,
+    is_quiz_mode: isNonScored ? false : input.is_quiz_mode ?? false,
+    points_value: isNonScored ? 0 : input.points_value || 10,
+    time_limit_seconds: isSurvey ? null : input.time_limit_seconds || null,
     allow_multiple_select: input.allow_multiple_select ?? false,
+    survey_subtype: isSurvey ? input.survey_subtype || null : null,
     rating_min: input.rating_min || 1,
     rating_max: input.rating_max || 5,
     rating_min_label: input.rating_min_label || null,
@@ -146,7 +149,7 @@ async function createQuestion({ sessionId, input, user }) {
       question_id: question.question_id,
       option_text: option.option_text,
       media_url: option.media_url || null,
-      is_correct: isPoll ? false : option.is_correct ?? false,
+      is_correct: isNonScored ? false : option.is_correct ?? false,
       display_order: option.display_order || idx + 1
     }));
     await QuestionOption.bulkCreate(optionsToCreate);
@@ -180,6 +183,8 @@ async function updateQuestion({ questionId, input, user }) {
     const nextType =
       input.question_type !== undefined ? input.question_type : question.question_type;
     const isPoll = nextType === "poll";
+    const isSurvey = nextType === "survey";
+    const isNonScored = isPoll || isSurvey;
 
     Object.assign(question, {
       question_type: nextType,
@@ -191,20 +196,26 @@ async function updateQuestion({ questionId, input, user }) {
         input.media_thumbnail_url !== undefined
           ? input.media_thumbnail_url
           : question.media_thumbnail_url,
-      is_quiz_mode: isPoll
+      is_quiz_mode: isNonScored
         ? false
         : input.is_quiz_mode !== undefined
           ? Boolean(input.is_quiz_mode)
           : question.is_quiz_mode,
-      points_value: isPoll
+      points_value: isNonScored
         ? 0
         : input.points_value !== undefined
           ? input.points_value
           : question.points_value,
-      time_limit_seconds:
-        input.time_limit_seconds !== undefined
+      time_limit_seconds: isSurvey
+        ? null
+        : input.time_limit_seconds !== undefined
           ? input.time_limit_seconds
           : question.time_limit_seconds,
+      survey_subtype: isSurvey
+        ? input.survey_subtype !== undefined
+          ? input.survey_subtype
+          : question.survey_subtype
+        : null,
       allow_multiple_select:
         input.allow_multiple_select !== undefined
           ? Boolean(input.allow_multiple_select)
@@ -229,7 +240,7 @@ async function updateQuestion({ questionId, input, user }) {
         question_id: question.question_id,
         option_text: option.option_text,
         media_url: option.media_url || null,
-        is_correct: isPoll ? false : option.is_correct ?? false,
+        is_correct: isNonScored ? false : option.is_correct ?? false,
         display_order: option.display_order || idx + 1
       }));
       if (optionsToCreate.length > 0) {

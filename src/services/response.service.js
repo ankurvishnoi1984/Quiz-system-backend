@@ -196,7 +196,23 @@ async function getSessionForAccess(sessionId) {
 }
 
 function isQuestionTimed(question) {
+  if (question.question_type === "survey") return false;
   return Number(question.time_limit_seconds) > 0;
+}
+
+function getEffectiveQuestionType(question) {
+  if (question.question_type === "survey") {
+    return question.survey_subtype || "mcq";
+  }
+  return question.question_type;
+}
+
+function isNonScoredQuestion(question) {
+  return (
+    question.question_type === "poll" ||
+    question.question_type === "survey" ||
+    !question.is_quiz_mode
+  );
 }
 
 async function submitResponse({ participant, input }) {
@@ -233,6 +249,59 @@ async function submitResponse({ participant, input }) {
   }
 
   const timed = isQuestionTimed(question);
+  const effectiveType = getEffectiveQuestionType(question);
+  const nonScored = isNonScoredQuestion(question);
+
+  if (Array.isArray(input.option_ids) && input.option_ids.length > 0) {
+    if (!question.allow_multiple_select) {
+      const error = new Error("Multiple selections are not allowed for this question");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!["mcq", "poll"].includes(effectiveType)) {
+      const error = new Error("Multiple option selections are only supported for choice questions");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const optionIds = input.option_ids.map(Number).filter((id) => Number.isFinite(id) && id > 0);
+    const validIds = new Set(
+      (question.QuestionOptions || question.question_options || [])
+        .map((opt) => Number(opt.option_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    );
+    if (!optionIds.length || !optionIds.every((id) => validIds.has(id))) {
+      const error = new Error("Invalid option selection");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await Response.destroy({
+      where: {
+        question_id: question.question_id,
+        participant_id: participant.participant_id
+      }
+    });
+
+    const rows = await Response.bulkCreate(
+      optionIds.map((optionId) => ({
+        session_id: question.session_id,
+        dept_id: question.dept_id,
+        question_id: question.question_id,
+        participant_id: participant.participant_id,
+        option_id: optionId,
+        text_response: null,
+        rating_value: null,
+        ranking_order: null,
+        is_correct: null,
+        points_earned: 0,
+        response_time_ms: input.response_time_ms || null,
+        submitted_at: new Date()
+      }))
+    );
+
+    return { response: rows[0], created: true };
+  }
 
   const existing = await Response.findOne({
     where: {
@@ -258,7 +327,18 @@ async function submitResponse({ participant, input }) {
     response_time_ms: input.response_time_ms || null
   };
 
-  if (question.question_type === "ranking") {
+  if (effectiveType === "rating") {
+    const min = Number(question.rating_min ?? 1);
+    const max = Number(question.rating_max ?? 5);
+    const rating = Number(responsePayload.rating_value);
+    if (!Number.isFinite(rating) || rating < min || rating > max) {
+      const error = new Error(`Rating must be between ${min} and ${max}`);
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (effectiveType === "ranking") {
     const optionIds = (question.QuestionOptions || question.question_options || [])
       .map((opt) => Number(opt.option_id))
       .filter((id) => Number.isFinite(id) && id > 0);
@@ -286,11 +366,14 @@ async function submitResponse({ participant, input }) {
       error.statusCode = 400;
       throw error;
     }
-    if (question.is_quiz_mode) {
+    if (nonScored) {
+      responsePayload.is_correct = null;
+      responsePayload.points_earned = 0;
+    } else if (question.is_quiz_mode) {
       responsePayload.is_correct = Boolean(option.is_correct);
       responsePayload.points_earned = option.is_correct ? Number(question.points_value || 0) : 0;
     }
-  } else if (question.is_quiz_mode) {
+  } else if (nonScored || question.is_quiz_mode) {
     responsePayload.is_correct = null;
     responsePayload.points_earned = 0;
   }
@@ -299,21 +382,21 @@ async function submitResponse({ participant, input }) {
   let created = false;
 
   if (existing && (!timed || question.open_for_reattempt)) {
-    const oldPoints = question.is_quiz_mode ? Number(existing.points_earned || 0) : 0;
-    const newPoints = question.is_quiz_mode ? Number(responsePayload.points_earned || 0) : 0;
+    const oldPoints = nonScored ? 0 : Number(existing.points_earned || 0);
+    const newPoints = nonScored ? 0 : Number(responsePayload.points_earned || 0);
     await existing.update({
       ...responsePayload,
       submitted_at: new Date()
     });
     saved = existing;
     const delta = newPoints - oldPoints;
-    if (question.is_quiz_mode && delta !== 0) {
+    if (!nonScored && question.is_quiz_mode && delta !== 0) {
       await Participant.increment({ score: delta }, { where: { participant_id: participant.participant_id } });
     }
   } else {
     created = true;
     saved = await Response.create(responsePayload);
-    if (question.is_quiz_mode && Number(saved.points_earned || 0) > 0) {
+    if (!nonScored && question.is_quiz_mode && Number(saved.points_earned || 0) > 0) {
       await Participant.increment(
         { score: saved.points_earned },
         { where: { participant_id: participant.participant_id } }
@@ -340,7 +423,7 @@ async function submitResponse({ participant, input }) {
       notifyLeaderboard(session.session_code, payload);
     }
 
-    if (question.question_type === "ranking") {
+    if (effectiveType === "ranking") {
       const rankingResponses = await Response.findAll({
         where: { question_id: question.question_id },
         attributes: ["ranking_order"]
@@ -398,6 +481,7 @@ async function getQuestionResults({ questionId, user }) {
     order: [["submitted_at", "ASC"]]
   });
 
+  const effectiveType = getEffectiveQuestionType(question);
   const total = responses.length;
   const byOption = {};
   responses.forEach((row) => {
@@ -407,23 +491,27 @@ async function getQuestionResults({ questionId, user }) {
     }
   });
 
+  const ratingResponses = responses.filter((row) => row.rating_value != null);
+
   return {
     question_id: question.question_id,
     question_type: question.question_type,
+    survey_subtype: question.survey_subtype || null,
     total_responses: total,
     by_option: byOption,
     word_counts:
-      question.question_type === "word_cloud" ? aggregateWordCloudCounts(responses) : null,
+      effectiveType === "word_cloud" ? aggregateWordCloudCounts(responses) : null,
     average_rating:
-      question.question_type === "rating" && total > 0
+      effectiveType === "rating" && ratingResponses.length > 0
         ? Number(
             (
-              responses.reduce((sum, row) => sum + Number(row.rating_value || 0), 0) / total
+              ratingResponses.reduce((sum, row) => sum + Number(row.rating_value || 0), 0) /
+              ratingResponses.length
             ).toFixed(2)
           )
         : null,
     ranking_analytics:
-      question.question_type === "ranking" ? buildRankingAnalytics(question, responses) : null
+      effectiveType === "ranking" ? buildRankingAnalytics(question, responses) : null
   };
 }
 
