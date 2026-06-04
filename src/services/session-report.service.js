@@ -11,8 +11,48 @@ const {
   assertStaffAccess,
   getSessionForAccess,
   buildRankingAnalytics,
-  aggregateWordCloudCounts
+  aggregateWordCloudCounts,
+  getEffectiveQuestionType
 } = require("./response.service");
+
+function isSurveyQuestion(question) {
+  return question?.question_type === "survey";
+}
+
+function surveySubTypeDisplay(subType) {
+  const labels = {
+    mcq: "Multiple Choice (MCQ)",
+    poll: "Poll",
+    rating: "Rating",
+    open_text: "Open Text",
+    word_cloud: "Word Cloud",
+    ranking: "Ranking"
+  };
+  return labels[subType] || subType || "—";
+}
+
+function mapQuestionBreakdownRow(question, index, options, responses) {
+  const questionResponses = responses.filter(
+    (row) => Number(row.question_id) === Number(question.question_id)
+  );
+  const effectiveType = getEffectiveQuestionType(question);
+  return {
+    question_id: question.question_id,
+    question_index: index + 1,
+    question_text: question.question_text,
+    question_type: question.question_type,
+    survey_subtype: isSurveyQuestion(question) ? question.survey_subtype || null : null,
+    chart_type: effectiveType,
+    is_survey: isSurveyQuestion(question),
+    type_label: isSurveyQuestion(question)
+      ? surveySubTypeDisplay(effectiveType)
+      : question.question_type,
+    is_quiz_mode: isSurveyQuestion(question) ? false : Boolean(question.is_quiz_mode),
+    was_activated: question.live_activated_at != null,
+    total_responses: questionResponses.length,
+    options: buildQuestionResponseBreakdown(question, options, responses)
+  };
+}
 
 function formatDurationMinutes(startedAt, endedAt) {
   if (!startedAt) return 0;
@@ -61,7 +101,7 @@ function buildQuestionResponseBreakdown(question, options, responses) {
     (row) => Number(row.question_id) === Number(question.question_id)
   );
   const total = questionResponses.length;
-  const type = question.question_type;
+  const type = getEffectiveQuestionType(question);
 
   if (["mcq", "poll", "true_false"].includes(type)) {
     return options.map((opt) => {
@@ -87,10 +127,17 @@ function buildQuestionResponseBreakdown(question, options, responses) {
   }
 
   if (type === "rating") {
+    const min = Number(question.rating_min ?? 1);
+    const max = Number(question.rating_max ?? 5);
     const counts = new Map();
+    for (let value = min; value <= max; value += 1) {
+      counts.set(String(value), 0);
+    }
     for (const row of questionResponses) {
-      const value = row.rating_value != null ? String(row.rating_value) : "—";
-      counts.set(value, (counts.get(value) || 0) + 1);
+      const value = row.rating_value != null ? String(row.rating_value) : null;
+      if (value != null && counts.has(value)) {
+        counts.set(value, (counts.get(value) || 0) + 1);
+      }
     }
     return Array.from(counts.entries())
       .sort(([a], [b]) => Number(a) - Number(b))
@@ -244,20 +291,11 @@ async function getSessionSummaryReport({ sessionId, user }) {
 
   const questionBreakdowns = questions.map((question, index) => {
     const options = question.QuestionOptions || question.question_options || [];
-    const questionResponses = responses.filter(
-      (row) => Number(row.question_id) === Number(question.question_id)
-    );
-    return {
-      question_id: question.question_id,
-      question_index: index + 1,
-      question_text: question.question_text,
-      question_type: question.question_type,
-      is_quiz_mode: Boolean(question.is_quiz_mode),
-      was_activated: question.live_activated_at != null,
-      total_responses: questionResponses.length,
-      options: buildQuestionResponseBreakdown(question, options, responses)
-    };
+    return mapQuestionBreakdownRow(question, index, options, responses);
   });
+
+  const surveyQuestionBreakdowns = questionBreakdowns.filter((row) => row.is_survey);
+  const standaloneQuestionBreakdowns = questionBreakdowns.filter((row) => !row.is_survey);
 
   const department = session.department || (await Department.findByPk(session.dept_id));
   const durationMinutes = formatDurationMinutes(session.started_at, session.ended_at);
@@ -294,6 +332,8 @@ async function getSessionSummaryReport({ sessionId, user }) {
     quiz_stats: quizStats,
     response_timeline: buildResponseTimeline(responses, session.started_at, session.ended_at),
     question_breakdowns: questionBreakdowns,
+    survey_question_breakdowns: surveyQuestionBreakdowns,
+    standalone_question_breakdowns: standaloneQuestionBreakdowns,
     qa_log: qaQuestions.map((row) => ({
       qa_id: row.qa_id,
       question_text: row.question_text,
@@ -325,13 +365,14 @@ function buildOptionTextMap(options) {
   return map;
 }
 
-function formatResponseAnswer(response, questionType, optionMap) {
+function formatResponseAnswer(response, question, optionMap) {
+  const chartType = getEffectiveQuestionType(question);
   if (response.option_id != null && optionMap.has(Number(response.option_id))) {
     return optionMap.get(Number(response.option_id));
   }
   if (response.text_response) return response.text_response;
   if (response.rating_value != null) return String(response.rating_value);
-  if (Array.isArray(response.ranking_order) && response.ranking_order.length) {
+  if (chartType === "ranking" && Array.isArray(response.ranking_order) && response.ranking_order.length) {
     return response.ranking_order
       .map((id) => optionMap.get(Number(id)) || `#${id}`)
       .join(" > ");
@@ -339,12 +380,20 @@ function formatResponseAnswer(response, questionType, optionMap) {
   return "—";
 }
 
-function buildRatingDistribution(questionResponses) {
-  const total = questionResponses.length;
+function buildRatingDistribution(questionResponses, question) {
+  const min = Number(question?.rating_min ?? 1);
+  const max = Number(question?.rating_max ?? 5);
+  const ratingRows = questionResponses.filter((row) => row.rating_value != null);
+  const total = ratingRows.length;
   const counts = new Map();
-  for (const row of questionResponses) {
-    const value = row.rating_value != null ? String(row.rating_value) : "—";
-    counts.set(value, (counts.get(value) || 0) + 1);
+  for (let value = min; value <= max; value += 1) {
+    counts.set(String(value), 0);
+  }
+  for (const row of ratingRows) {
+    const value = String(row.rating_value);
+    if (counts.has(value)) {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
   }
   return Array.from(counts.entries())
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -390,7 +439,7 @@ function buildFastestResponders(questionResponses, participantsById) {
 }
 
 function correctRatePercent(question, questionResponses) {
-  if (!question.is_quiz_mode || !questionResponses.length) return null;
+  if (isSurveyQuestion(question) || !question.is_quiz_mode || !questionResponses.length) return null;
   const scored = questionResponses.filter((row) => row.is_correct != null);
   if (!scored.length) return null;
   const correct = scored.filter((row) => row.is_correct).length;
@@ -443,33 +492,49 @@ async function getSessionQuestionsReport({ sessionId, user }) {
         ? Number(((responseCount / totalParticipants) * 100).toFixed(2))
         : 0;
 
+    const effectiveType = getEffectiveQuestionType(question);
+    const survey = isSurveyQuestion(question);
+
     const responseRows = questionResponses.map((row) => {
       const participant = row.Participant || row.participant || participantsById.get(Number(row.participant_id));
       return {
         participant_id: row.participant_id,
         nickname: participantDisplayName(participant, row.participant_id),
-        answer: formatResponseAnswer(row, question.question_type, optionMap),
-        is_correct: row.is_correct,
+        answer: formatResponseAnswer(row, question, optionMap),
+        is_correct: survey ? null : row.is_correct,
         response_time_ms: row.response_time_ms != null ? Number(row.response_time_ms) : null,
         submitted_at: row.submitted_at
       };
     });
+
+    const ratingDistribution =
+      effectiveType === "rating" ? buildRatingDistribution(questionResponses, question) : null;
+    const ratingValues = questionResponses
+      .map((row) => Number(row.rating_value))
+      .filter((value) => Number.isFinite(value));
+    const averageRating =
+      ratingValues.length > 0
+        ? Number((ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length).toFixed(2))
+        : null;
 
     return {
       question_id: question.question_id,
       question_index: index + 1,
       question_text: question.question_text,
       question_type: question.question_type,
-      is_quiz_mode: Boolean(question.is_quiz_mode),
+      survey_subtype: survey ? question.survey_subtype || null : null,
+      chart_type: effectiveType,
+      is_survey: survey,
+      type_label: survey ? surveySubTypeDisplay(effectiveType) : question.question_type,
+      is_quiz_mode: survey ? false : Boolean(question.is_quiz_mode),
       response_count: responseCount,
       response_rate_percent: responseRatePercent,
       correct_rate_percent: correctRatePercent(question, questionResponses),
       avg_response_time_seconds: avgResponseTimeSeconds(questionResponses),
+      average_rating: averageRating,
       fastest_responders: buildFastestResponders(questionResponses, participantsById),
-      rating_distribution:
-        question.question_type === "rating" ? buildRatingDistribution(questionResponses) : null,
-      word_frequency:
-        question.question_type === "word_cloud" ? buildWordFrequency(questionResponses) : null,
+      rating_distribution: ratingDistribution,
+      word_frequency: effectiveType === "word_cloud" ? buildWordFrequency(questionResponses) : null,
       responses: responseRows
     };
   });
@@ -487,10 +552,15 @@ async function getSessionQuestionsReport({ sessionId, user }) {
       question_index: question.question_index,
       question_text: question.question_text,
       question_type: question.question_type,
+      survey_subtype: question.survey_subtype,
+      chart_type: question.chart_type,
+      is_survey: question.is_survey,
+      type_label: question.type_label,
       response_count: question.response_count,
       response_rate_percent: question.response_rate_percent,
       correct_rate_percent: question.correct_rate_percent,
-      avg_response_time_seconds: question.avg_response_time_seconds
+      avg_response_time_seconds: question.avg_response_time_seconds,
+      average_rating: question.average_rating
     }))
   };
 }
@@ -574,7 +644,7 @@ async function getSessionParticipantsReport({ sessionId, user }) {
       nickname: stats.nickname,
       question_id: row.question_id,
       question_text: question?.question_text || "",
-      answer: formatResponseAnswer(row, question?.question_type, optionMap),
+      answer: formatResponseAnswer(row, question, optionMap),
       is_correct: row.is_correct,
       points_earned: Number(row.points_earned || 0),
       response_time_ms: responseTimeMs,

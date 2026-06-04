@@ -556,11 +556,25 @@ async function getSessionSummary({ sessionId, user }) {
 }
 
 async function exportSessionResponsesCsv({ sessionId, user }) {
-  const rows = await getSessionResponses({ sessionId, user });
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+
+  const [rows, questions] = await Promise.all([
+    getSessionResponses({ sessionId, user }),
+    Question.findAll({
+      where: { session_id: sessionId },
+      attributes: ["question_id", "question_text", "question_type", "survey_subtype"]
+    })
+  ]);
+
+  const questionsById = new Map(questions.map((q) => [Number(q.question_id), q]));
+
   const header = [
     "response_id",
     "question_id",
     "question_text",
+    "question_type",
+    "survey_sub_type",
     "participant_id",
     "nickname",
     "option_id",
@@ -570,23 +584,32 @@ async function exportSessionResponsesCsv({ sessionId, user }) {
     "points_earned",
     "submitted_at"
   ];
-  const csvRows = rows.map((row) =>
-    [
+
+  const csvRows = rows.map((row) => {
+    const question = questionsById.get(Number(row.question_id));
+    const isSurvey = question?.question_type === "survey";
+    const surveySubType = isSurvey ? question.survey_subtype || "" : "";
+    const pointsEarned = isSurvey ? "" : row.points_earned ?? 0;
+
+    return [
       row.response_id,
       row.question_id,
-      row.question?.question_text || "",
+      question?.question_text || row.question?.question_text || "",
+      question?.question_type || row.question?.question_type || "",
+      surveySubType,
       row.participant_id,
       row.participant?.nickname || "",
       row.option_id || "",
       row.question_option?.option_text || "",
       row.text_response || "",
-      row.rating_value || "",
-      row.points_earned || 0,
+      row.rating_value ?? "",
+      pointsEarned,
       row.submitted_at ? new Date(row.submitted_at).toISOString() : ""
     ]
       .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-      .join(",")
-  );
+      .join(",");
+  });
+
   return [header.join(","), ...csvRows].join("\n");
 }
 
@@ -672,5 +695,7 @@ module.exports = {
   buildRankingAnalytics,
   aggregateWordCloudCounts,
   getSessionForAccess,
-  assertStaffAccess
+  assertStaffAccess,
+  getEffectiveQuestionType,
+  isNonScoredQuestion
 };
