@@ -20,6 +20,7 @@ const Question = sequelize.define(
     question_type: {
       type: DataTypes.ENUM(
         "mcq",
+        "poll",
         "word_cloud",
         "rating",
         "open_text",

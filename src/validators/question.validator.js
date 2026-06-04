@@ -15,6 +15,12 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
+  if (payload?.question_type === "poll") {
+    if (!Array.isArray(payload.options) || payload.options.length < 2) {
+      errors.push("poll options must include at least 2 entries");
+    }
+  }
+
   if (payload?.question_type === "true_false") {
     if (!Array.isArray(payload.options) || payload.options.length !== 2) {
       errors.push("true_false must include exactly 2 options (True and False)");

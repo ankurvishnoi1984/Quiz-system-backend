@@ -118,6 +118,8 @@ async function createQuestion({ sessionId, input, user }) {
 
   const nextOrder = (await Question.count({ where: { session_id: sessionId } })) + 1;
 
+  const isPoll = input.question_type === "poll";
+
   const question = await Question.create({
     session_id: session.session_id,
     dept_id: session.dept_id,
@@ -126,8 +128,8 @@ async function createQuestion({ sessionId, input, user }) {
     media_url: input.media_url || null,
     media_type: input.media_type || null,
     media_thumbnail_url: input.media_thumbnail_url || null,
-    is_quiz_mode: input.is_quiz_mode ?? false,
-    points_value: input.points_value || 10,
+    is_quiz_mode: isPoll ? false : input.is_quiz_mode ?? false,
+    points_value: isPoll ? 0 : input.points_value || 10,
     time_limit_seconds: input.time_limit_seconds || null,
     allow_multiple_select: input.allow_multiple_select ?? false,
     rating_min: input.rating_min || 1,
@@ -144,7 +146,7 @@ async function createQuestion({ sessionId, input, user }) {
       question_id: question.question_id,
       option_text: option.option_text,
       media_url: option.media_url || null,
-      is_correct: option.is_correct ?? false,
+      is_correct: isPoll ? false : option.is_correct ?? false,
       display_order: option.display_order || idx + 1
     }));
     await QuestionOption.bulkCreate(optionsToCreate);
@@ -175,9 +177,12 @@ async function updateQuestion({ questionId, input, user }) {
   const isDraft = session.status === "draft";
 
   if (isDraft) {
+    const nextType =
+      input.question_type !== undefined ? input.question_type : question.question_type;
+    const isPoll = nextType === "poll";
+
     Object.assign(question, {
-      question_type:
-        input.question_type !== undefined ? input.question_type : question.question_type,
+      question_type: nextType,
       question_text:
         input.question_text !== undefined ? input.question_text : question.question_text,
       media_url: input.media_url !== undefined ? input.media_url : question.media_url,
@@ -186,9 +191,16 @@ async function updateQuestion({ questionId, input, user }) {
         input.media_thumbnail_url !== undefined
           ? input.media_thumbnail_url
           : question.media_thumbnail_url,
-      is_quiz_mode:
-        input.is_quiz_mode !== undefined ? Boolean(input.is_quiz_mode) : question.is_quiz_mode,
-      points_value: input.points_value !== undefined ? input.points_value : question.points_value,
+      is_quiz_mode: isPoll
+        ? false
+        : input.is_quiz_mode !== undefined
+          ? Boolean(input.is_quiz_mode)
+          : question.is_quiz_mode,
+      points_value: isPoll
+        ? 0
+        : input.points_value !== undefined
+          ? input.points_value
+          : question.points_value,
       time_limit_seconds:
         input.time_limit_seconds !== undefined
           ? input.time_limit_seconds
@@ -217,7 +229,7 @@ async function updateQuestion({ questionId, input, user }) {
         question_id: question.question_id,
         option_text: option.option_text,
         media_url: option.media_url || null,
-        is_correct: option.is_correct ?? false,
+        is_correct: isPoll ? false : option.is_correct ?? false,
         display_order: option.display_order || idx + 1
       }));
       if (optionsToCreate.length > 0) {

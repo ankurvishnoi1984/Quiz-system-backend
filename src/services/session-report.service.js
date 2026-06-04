@@ -63,7 +63,7 @@ function buildQuestionResponseBreakdown(question, options, responses) {
   const total = questionResponses.length;
   const type = question.question_type;
 
-  if (["mcq", "true_false"].includes(type)) {
+  if (["mcq", "poll", "true_false"].includes(type)) {
     return options.map((opt) => {
       const count = questionResponses.filter(
         (row) => Number(row.option_id) === Number(opt.option_id)
