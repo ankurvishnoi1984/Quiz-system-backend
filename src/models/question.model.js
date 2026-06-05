@@ -74,7 +74,7 @@ const Question = sequelize.define(
     rating_max: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      defaultValue: 5
+      defaultValue: 10
     },
     rating_min_label: {
       type: DataTypes.STRING(50),
