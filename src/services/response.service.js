@@ -15,13 +15,11 @@ function participantDisplayName(participant, participantId) {
   if (!p || typeof p !== "object") {
     return `Participant ${participantId}`;
   }
-  if (p.is_anonymous) {
-    return "Anonymous";
-  }
   const nickname = String(p.nickname || "").trim();
   if (nickname) return nickname;
   const email = String(p.email || "").trim();
   if (email) return email;
+  if (p.is_anonymous) return "Anonymous";
   return `Participant ${participantId}`;
 }
 

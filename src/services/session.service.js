@@ -438,9 +438,27 @@ async function getSessionByCode(code) {
 }
 
 function participantJoinLabel(participant) {
-  if (participant?.nickname?.trim()) return participant.nickname.trim();
+  const nickname = String(participant?.nickname || "").trim();
+  if (nickname) return nickname;
   if (participant?.is_anonymous) return "Anonymous";
   return `Participant ${participant.participant_id}`;
+}
+
+function resolveParticipantAnonymous(session, payload) {
+  if (payload.is_anonymous !== undefined) {
+    return Boolean(payload.is_anonymous);
+  }
+  if (session.join_type === "anonymous") {
+    return true;
+  }
+  return Boolean(session.is_anonymous_default);
+}
+
+async function nextAnonymousNickname(sessionId) {
+  const anonymousCount = await Participant.count({
+    where: { session_id: sessionId, is_anonymous: true }
+  });
+  return `Anonymous${anonymousCount + 1}`;
 }
 
 async function listSessionParticipants({ sessionId, user }) {
@@ -541,13 +559,18 @@ async function joinSession({ code, payload }) {
 
   await assertNewParticipantMayJoin(session);
 
+  const isAnonymous = resolveParticipantAnonymous(session, payload);
+  const nickname = isAnonymous
+    ? await nextAnonymousNickname(session.session_id)
+    : payload.nickname || null;
+
   const participant = await Participant.create({
     session_id: session.session_id,
     dept_id: session.dept_id,
-    nickname: payload.nickname || null,
+    nickname,
     email: payload.email || null,
     avatar_url: payload.avatar_url || null,
-    is_anonymous: payload.is_anonymous ?? session.is_anonymous_default,
+    is_anonymous: isAnonymous,
     device_fingerprint: payload.device_fingerprint || null
   });
 

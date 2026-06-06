@@ -276,10 +276,7 @@ async function getSessionSummaryReport({ sessionId, user }) {
 
   const participantSummaries = participants
     .map((participant) => {
-      const nickname = participant.is_anonymous
-        ? "Anonymous"
-        : String(participant.nickname || participant.email || "").trim() ||
-          `Participant ${participant.participant_id}`;
+      const nickname = participantDisplayName(participant, participant.participant_id);
       return {
         participant_id: participant.participant_id,
         nickname,
@@ -349,11 +346,11 @@ async function getSessionSummaryReport({ sessionId, user }) {
 
 function participantDisplayName(participant, participantId) {
   if (!participant) return `Participant ${participantId}`;
-  if (participant.is_anonymous) return "Anonymous";
   const nickname = String(participant.nickname || "").trim();
   if (nickname) return nickname;
   const email = String(participant.email || "").trim();
   if (email) return email;
+  if (participant.is_anonymous) return "Anonymous";
   return `Participant ${participantId}`;
 }
 
