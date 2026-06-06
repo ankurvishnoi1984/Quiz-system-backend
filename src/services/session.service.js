@@ -173,6 +173,8 @@ async function createSession({ deptId, input, user }) {
      host_id: Number(input.host_id),
      title: input.title.trim(),
      description: input.description || null,
+     scheduled_date: input.scheduled_date || null,
+     scheduled_time: input.scheduled_time || null,
      session_code: sessionCode,
      status: "draft",
      join_type: input.join_type ?? 'name',
@@ -232,6 +234,8 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         host_id: hostId,
         title,
         description: source.description,
+        scheduled_date: source.scheduled_date || null,
+        scheduled_time: source.scheduled_time || null,
         session_code: sessionCode,
         status: "draft",
         join_type: source.join_type || "name",
@@ -364,7 +368,11 @@ async function updateSession({ sessionId, input, user }) {
         ? Boolean(input.participant_navigation_enabled)
         : session.participant_navigation_enabled,
     join_type:
-      input.join_type !== undefined ? input.join_type : session.join_type
+      input.join_type !== undefined ? input.join_type : session.join_type,
+    scheduled_date:
+      input.scheduled_date !== undefined ? input.scheduled_date || null : session.scheduled_date,
+    scheduled_time:
+      input.scheduled_time !== undefined ? input.scheduled_time || null : session.scheduled_time
   });
 
   await session.save();

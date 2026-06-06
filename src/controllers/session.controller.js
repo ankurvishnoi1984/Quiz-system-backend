@@ -175,6 +175,8 @@ async function lookupByCode(req, res) {
           title: session.title,
           status: session.status,
           session_code: session.session_code,
+          scheduled_date: session.scheduled_date || null,
+          scheduled_time: session.scheduled_time || null,
           department: session.department,
           join_type: session.join_type,
           leaderboard_enabled: Boolean(session.leaderboard_enabled),

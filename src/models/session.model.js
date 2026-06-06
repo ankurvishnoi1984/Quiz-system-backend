@@ -25,6 +25,14 @@ const Session = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true
     },
+    scheduled_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true
+    },
+    scheduled_time: {
+      type: DataTypes.STRING(5),
+      allowNull: true
+    },
     session_code: {
       type: DataTypes.CHAR(6),
       allowNull: false,

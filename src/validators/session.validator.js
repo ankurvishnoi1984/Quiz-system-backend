@@ -1,3 +1,24 @@
+function validateScheduledDate(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return "scheduled_date must be a valid date (YYYY-MM-DD)";
+  }
+  return null;
+}
+
+function validateScheduledTime(value) {
+  if (value == null || value === "") return null;
+  const trimmed = String(value).trim();
+  if (!/^\d{2}:\d{2}$/.test(trimmed)) {
+    return "scheduled_time must be a valid time (HH:mm)";
+  }
+  const [hours, minutes] = trimmed.split(":").map(Number);
+  if (hours > 23 || minutes > 59) {
+    return "scheduled_time must be a valid time (HH:mm)";
+  }
+  return null;
+}
+
 function validateCreateSessionPayload(payload) {
   const errors = [];
 
@@ -31,6 +52,12 @@ function validateCreateSessionPayload(payload) {
     errors.push("participant_navigation_enabled must be a boolean");
   }
 
+  const scheduledDateError = validateScheduledDate(payload?.scheduled_date);
+  if (scheduledDateError) errors.push(scheduledDateError);
+
+  const scheduledTimeError = validateScheduledTime(payload?.scheduled_time);
+  if (scheduledTimeError) errors.push(scheduledTimeError);
+
   return errors;
 }
 
@@ -45,7 +72,9 @@ function validateUpdateSessionPayload(payload) {
     "leaderboard_enabled",
     "show_question_leaderboard",
     "participant_navigation_enabled",
-    "join_type"
+    "join_type",
+    "scheduled_date",
+    "scheduled_time"
   ];
 
   if (!payload || typeof payload !== "object") {
@@ -76,6 +105,12 @@ function validateUpdateSessionPayload(payload) {
   ) {
     errors.push("join_type must be one of: name, anonymous, name_email");
   }
+
+  const scheduledDateError = validateScheduledDate(payload?.scheduled_date);
+  if (scheduledDateError) errors.push(scheduledDateError);
+
+  const scheduledTimeError = validateScheduledTime(payload?.scheduled_time);
+  if (scheduledTimeError) errors.push(scheduledTimeError);
 
   return errors;
 }
