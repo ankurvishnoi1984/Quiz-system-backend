@@ -463,24 +463,7 @@ function aggregateWordCloudCounts(responses) {
   return Array.from(byKey.values()).sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
 }
 
-async function getQuestionResults({ questionId, user }) {
-  const question = await Question.findByPk(questionId, {
-    include: [{ model: Session }, { model: QuestionOption }]
-  });
-  if (!question) {
-    const error = new Error("Question not found");
-    error.statusCode = 404;
-    throw error;
-  }
-  const session = await getSessionForAccess(question.session_id);
-  assertStaffAccess(user, session);
-
-  const responses = await Response.findAll({
-    where: { question_id: questionId },
-    include: [{ model: QuestionOption, attributes: ["option_id", "option_text", "display_order"] }],
-    order: [["submitted_at", "ASC"]]
-  });
-
+function buildQuestionResultsPayload(question, responses) {
   const effectiveType = getEffectiveQuestionType(question);
   const total = responses.length;
   const byOption = {};
@@ -492,11 +475,27 @@ async function getQuestionResults({ questionId, user }) {
   });
 
   const ratingResponses = responses.filter((row) => row.rating_value != null);
+  let ratingDistribution = null;
+  if (effectiveType === "rating") {
+    const min = Number(question.rating_min ?? 1);
+    const max = Number(question.rating_max ?? 10);
+    ratingDistribution = {};
+    for (let value = min; value <= max; value += 1) {
+      ratingDistribution[value] = 0;
+    }
+    ratingResponses.forEach((row) => {
+      const value = Number(row.rating_value);
+      if (value >= min && value <= max) {
+        ratingDistribution[value] += 1;
+      }
+    });
+  }
 
   return {
     question_id: question.question_id,
     question_type: question.question_type,
     survey_subtype: question.survey_subtype || null,
+    effective_type: effectiveType,
     total_responses: total,
     by_option: byOption,
     word_counts:
@@ -510,9 +509,83 @@ async function getQuestionResults({ questionId, user }) {
             ).toFixed(2)
           )
         : null,
+    rating_distribution: ratingDistribution,
     ranking_analytics:
       effectiveType === "ranking" ? buildRankingAnalytics(question, responses) : null
   };
+}
+
+async function loadQuestionWithResponses(questionId) {
+  const question = await Question.findByPk(questionId, {
+    include: [{ model: QuestionOption }]
+  });
+  if (!question) {
+    const error = new Error("Question not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const responses = await Response.findAll({
+    where: { question_id: questionId },
+    include: [{ model: QuestionOption, attributes: ["option_id", "option_text", "display_order"] }],
+    order: [["submitted_at", "ASC"]]
+  });
+
+  return { question, responses };
+}
+
+async function getQuestionResults({ questionId, user }) {
+  const question = await Question.findByPk(questionId, {
+    include: [{ model: Session }, { model: QuestionOption }]
+  });
+  if (!question) {
+    const error = new Error("Question not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  const session = await getSessionForAccess(question.session_id);
+  assertStaffAccess(user, session);
+
+  const { question: loadedQuestion, responses } = await loadQuestionWithResponses(questionId);
+  return buildQuestionResultsPayload(loadedQuestion, responses);
+}
+
+async function getParticipantSurveyQuestionResults({ questionId, participant }) {
+  const { question, responses } = await loadQuestionWithResponses(questionId);
+
+  if (question.question_type !== "survey") {
+    const error = new Error("Results are available only for survey questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (Number(participant.session_id) !== Number(question.session_id)) {
+    const error = new Error("Not allowed for this session");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const hasSubmitted = await Response.findOne({
+    where: {
+      question_id: questionId,
+      participant_id: participant.participant_id
+    },
+    attributes: ["response_id"]
+  });
+
+  if (!hasSubmitted) {
+    const error = new Error("Submit your response before viewing results");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!question.show_leaderboard) {
+    const error = new Error("Results are not visible yet");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return buildQuestionResultsPayload(question, responses);
 }
 
 async function getSessionResponses({ sessionId, user }) {
@@ -685,6 +758,7 @@ async function getParticipantSessionLeaderboard({ sessionId, participant }) {
 module.exports = {
   submitResponse,
   getQuestionResults,
+  getParticipantSurveyQuestionResults,
   getSessionResponses,
   getSessionSummary,
   exportSessionResponsesCsv,

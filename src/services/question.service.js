@@ -449,15 +449,16 @@ async function setQuestionAnswerRevealed({ questionId, user, revealed }) {
 async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
+  const isSurvey = question.question_type === "survey";
 
-  if (!question.is_quiz_mode) {
-    const error = new Error("Leaderboard can be shown only for quiz mode questions");
+  if (!question.is_quiz_mode && !isSurvey) {
+    const error = new Error("Results can be shown only for quiz or survey questions");
     error.statusCode = 400;
     throw error;
   }
 
   if (session.status !== "live" && session.status !== "paused") {
-    const error = new Error("Leaderboard visibility can be changed only while the session is live");
+    const error = new Error("Result visibility can be changed only while the session is live");
     error.statusCode = 400;
     throw error;
   }

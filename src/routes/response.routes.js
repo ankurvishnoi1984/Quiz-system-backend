@@ -9,6 +9,11 @@ const router = express.Router();
 
 router.get("/sessions/:sessionId/participantQuestions",participantAuthMiddleware, responseController.listParticipantQuestions);
 router.get("/sessions/:sessionId/leaderboard", participantAuthMiddleware, responseController.participantSessionLeaderboard);
+router.get(
+  "/questions/:questionId/survey-results",
+  participantAuthMiddleware,
+  responseController.participantSurveyQuestionResults
+);
 router.post("/responses/submit", participantAuthMiddleware, responseController.submit);
 
 // Restrict staff auth to response reporting endpoints only.
