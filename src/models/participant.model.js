@@ -47,6 +47,10 @@ const Participant = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true
     },
+    session_state: {
+      type: DataTypes.JSON,
+      allowNull: true
+    },
     joined_at: {
       type: DataTypes.DATE,
       allowNull: true

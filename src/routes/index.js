@@ -9,6 +9,7 @@ const responseRoutes = require("./response.routes");
 const qaRoutes = require("./qa.routes");
 const mediaRoutes = require("./media.routes");
 const analyticsRoutes = require("./analytics.routes");
+const participantRoutes = require("./participant.routes");
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use("/", sessionRoutes);
 router.use("/", questionRoutes);
 router.use("/", qaRoutes);
 router.use("/", mediaRoutes);
+router.use("/", participantRoutes);
 router.use("/", analyticsRoutes);
 
 module.exports = router;

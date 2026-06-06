@@ -210,7 +210,9 @@ async function joinByCode(req, res) {
       res,
       {
         participant: result.participant,
-        participant_token: result.token
+        participant_token: result.token,
+        is_returning: Boolean(result.is_returning),
+        session_state: result.session_state ?? null
       },
       "Joined session successfully",
       200

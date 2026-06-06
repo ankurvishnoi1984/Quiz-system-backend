@@ -9,12 +9,20 @@ const {
   QuestionOption,
   Response
 } = require("../models");
-const { signAccessToken } = require("../utils/jwt");
 const {
   isMultiNavTimedJoinClosed,
   MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE
 } = require("../utils/sessionFlags");
-const { notifySessionProgress, notifyParticipantJoined } = require("./websocket.service");
+const {
+  assertParticipantCapacity,
+  assertSessionAcceptingJoin,
+  finalizeParticipantJoin,
+  findParticipantByDeviceFingerprint,
+  findParticipantByNameEmail,
+  normalizeParticipantEmail,
+  wantsFreshParticipantIdentity,
+  normalizeParticipantNickname
+} = require("./participant.service");
 
 function canAccessDepartment(user, department) {
   if (user.role === "super_admin") return true;
@@ -515,79 +523,72 @@ async function assertNewParticipantMayJoin(session) {
 
 async function joinSession({ code, payload }) {
   const session = await getSessionByCode(code);
+  const joinPayload = payload || {};
 
-  if (session.status !== "live" && !(session.status === "draft" && session.allow_late_join)) {
-    const error = new Error("Session is not accepting participants right now");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const participantsCount = await Participant.count({
-    where: { session_id: session.session_id }
-  });
-  if (participantsCount >= session.max_participants) {
-    const error = new Error("Session participant limit reached");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  if (payload.device_fingerprint) {
-    const existing = await Participant.findOne({
-      where: {
-        session_id: session.session_id,
-        device_fingerprint: payload.device_fingerprint
-      }
+  const existingByIdentity = await findParticipantByNameEmail(session, joinPayload);
+  if (existingByIdentity) {
+    assertSessionAcceptingJoin(session, { isReturning: true });
+    return finalizeParticipantJoin(session, existingByIdentity, {
+      isReturning: true,
+      payload: joinPayload
     });
-    const wantsFreshIdentity = Boolean(payload.nickname || payload.avatar_url) || payload.force_new_participant === true;
-    if (existing && !wantsFreshIdentity) {
-      const result = {
-        participant: existing,
-        token: signAccessToken({
-          participant_id: existing.participant_id,
-          session_id: session.session_id,
-          dept_id: session.dept_id,
-          role: "participant"
-        })
-      };
-      if (session.session_code) {
-        notifyParticipantJoined(session.session_code, existing);
-        notifySessionProgress(session.session_code, session.session_id).catch(() => {});
-      }
-      return result;
+  }
+
+  if (joinPayload.device_fingerprint && !wantsFreshParticipantIdentity(joinPayload)) {
+    const existingByDevice = await findParticipantByDeviceFingerprint(
+      session.session_id,
+      joinPayload.device_fingerprint
+    );
+    const wantsFreshIdentity =
+      Boolean(joinPayload.nickname || joinPayload.avatar_url) &&
+      session.join_type !== "name_email";
+    if (existingByDevice && !wantsFreshIdentity) {
+      assertSessionAcceptingJoin(session, { isReturning: true });
+      return finalizeParticipantJoin(session, existingByDevice, {
+        isReturning: true,
+        payload: joinPayload
+      });
     }
   }
 
+  assertSessionAcceptingJoin(session, { isReturning: false });
+  await assertParticipantCapacity(session);
   await assertNewParticipantMayJoin(session);
 
-  const isAnonymous = resolveParticipantAnonymous(session, payload);
+  if (session.join_type === "name_email") {
+    const email = normalizeParticipantEmail(joinPayload.email);
+    const nickname = normalizeParticipantNickname(joinPayload.nickname);
+    if (!email || !nickname) {
+      const error = new Error("Name and email are required to join this session");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const isAnonymous = resolveParticipantAnonymous(session, joinPayload);
   const nickname = isAnonymous
     ? await nextAnonymousNickname(session.session_id)
-    : payload.nickname || null;
+    : joinPayload.nickname || null;
+  const email =
+    session.join_type === "name_email" && joinPayload.email
+      ? normalizeParticipantEmail(joinPayload.email)
+      : joinPayload.email || null;
 
   const participant = await Participant.create({
     session_id: session.session_id,
     dept_id: session.dept_id,
     nickname,
-    email: payload.email || null,
-    avatar_url: payload.avatar_url || null,
+    email,
+    avatar_url: joinPayload.avatar_url || null,
     is_anonymous: isAnonymous,
-    device_fingerprint: payload.device_fingerprint || null
+    device_fingerprint: joinPayload.device_fingerprint || null,
+    session_state: null
   });
 
-  if (session.session_code) {
-    notifyParticipantJoined(session.session_code, participant);
-    notifySessionProgress(session.session_code, session.session_id).catch(() => {});
-  }
-
-  return {
-    participant,
-    token: signAccessToken({
-      participant_id: participant.participant_id,
-      session_id: session.session_id,
-      dept_id: session.dept_id,
-      role: "participant"
-    })
-  };
+  return finalizeParticipantJoin(session, participant, {
+    isReturning: false,
+    payload: joinPayload
+  });
 }
 
 async function getSessionQr({ sessionId, user, baseUrl }) {
