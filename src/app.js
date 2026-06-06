@@ -10,11 +10,24 @@ const app = express();
 
 app.get("/health", healthHandler);
 
-app.use(helmet());
+app.use(
+  helmet({
+    // Allow frontend apps on another origin to embed uploaded images/videos.
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  })
+);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static("uploads"));
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    next();
+  },
+  express.static("uploads")
+);
 
 /**
  * Participant join links must open the React app, not the JSON API.
