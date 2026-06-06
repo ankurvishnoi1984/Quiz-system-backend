@@ -261,6 +261,10 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
     });
 
     for (const q of questions) {
+      const isPoll = q.question_type === "poll";
+      const isSurvey = q.question_type === "survey";
+      const isNonScored = isPoll || isSurvey;
+
       const newQuestion = await Question.create(
         {
           session_id: newSession.session_id,
@@ -270,12 +274,13 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
           media_url: q.media_url,
           media_type: q.media_type,
           media_thumbnail_url: q.media_thumbnail_url,
-          is_quiz_mode: q.is_quiz_mode ?? false,
-          points_value: q.points_value ?? 10,
-          time_limit_seconds: q.time_limit_seconds,
+          is_quiz_mode: isNonScored ? false : q.is_quiz_mode ?? false,
+          points_value: isNonScored ? 0 : q.points_value ?? 10,
+          time_limit_seconds: isSurvey ? null : q.time_limit_seconds,
           allow_multiple_select: q.allow_multiple_select ?? false,
+          survey_subtype: isSurvey ? q.survey_subtype || null : null,
           rating_min: q.rating_min ?? 1,
-          rating_max: q.rating_max ?? 5,
+          rating_max: q.rating_max ?? 10,
           rating_min_label: q.rating_min_label,
           rating_max_label: q.rating_max_label,
           is_live: false,
@@ -300,7 +305,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
             question_id: newQuestion.question_id,
             option_text: o.option_text,
             media_url: o.media_url || null,
-            is_correct: o.is_correct ?? false,
+            is_correct: isNonScored ? false : o.is_correct ?? false,
             display_order: o.display_order != null ? o.display_order : idx + 1
           })),
           { transaction }
