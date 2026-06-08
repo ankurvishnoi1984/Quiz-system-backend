@@ -36,6 +36,13 @@ async function submit(req, res) {
     const message = created ? "Response submitted" : "Response updated";
     return successResponse(res, { response }, message, statusCode);
   } catch (err) {
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return errorResponse(
+        res,
+        "Could not save multiple selections for this question. Run the latest database migration to enable multi-select responses.",
+        409
+      );
+    }
     return errorResponse(res, err.message, err.statusCode || 500);
   }
 }

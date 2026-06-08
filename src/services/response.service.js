@@ -198,11 +198,21 @@ function isQuestionTimed(question) {
   return Number(question.time_limit_seconds) > 0;
 }
 
+function normalizeQuestionFormatType(type) {
+  return String(type || "").trim().toLowerCase();
+}
+
 function getEffectiveQuestionType(question) {
   if (question.question_type === "survey") {
-    return question.survey_subtype || "mcq";
+    return normalizeQuestionFormatType(question.survey_subtype || "mcq");
   }
-  return question.question_type;
+  return normalizeQuestionFormatType(question.question_type);
+}
+
+function supportsMultipleOptionSelection(question) {
+  if (!question.allow_multiple_select) return false;
+  const effectiveType = getEffectiveQuestionType(question);
+  return ["mcq", "poll"].includes(effectiveType);
 }
 
 function isNonScoredQuestion(question) {
@@ -251,18 +261,19 @@ async function submitResponse({ participant, input }) {
   const nonScored = isNonScoredQuestion(question);
 
   if (Array.isArray(input.option_ids) && input.option_ids.length > 0) {
-    if (!question.allow_multiple_select) {
-      const error = new Error("Multiple selections are not allowed for this question");
-      error.statusCode = 400;
-      throw error;
-    }
-    if (!["mcq", "poll"].includes(effectiveType)) {
-      const error = new Error("Multiple option selections are only supported for choice questions");
+    if (!supportsMultipleOptionSelection(question)) {
+      const error = new Error(
+        question.allow_multiple_select
+          ? "Multiple option selections are only supported for MCQ and poll questions"
+          : "Multiple selections are not allowed for this question"
+      );
       error.statusCode = 400;
       throw error;
     }
 
-    const optionIds = input.option_ids.map(Number).filter((id) => Number.isFinite(id) && id > 0);
+    const optionIds = [
+      ...new Set(input.option_ids.map(Number).filter((id) => Number.isFinite(id) && id > 0))
+    ];
     const validIds = new Set(
       (question.QuestionOptions || question.question_options || [])
         .map((opt) => Number(opt.option_id))

@@ -14,6 +14,9 @@ function validateSubmitResponsePayload(payload) {
       if (ids.some((id) => Number.isNaN(id) || id <= 0)) {
         errors.push("option_ids must include only numeric option ids");
       }
+      if (new Set(ids).size !== ids.length) {
+        errors.push("option_ids cannot include duplicate option ids");
+      }
     }
   }
   if (payload.ranking_order != null) {
