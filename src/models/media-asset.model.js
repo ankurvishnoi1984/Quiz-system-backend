@@ -35,7 +35,7 @@ const MediaAsset = sequelize.define(
       allowNull: true
     },
     media_type: {
-      type: DataTypes.ENUM("image", "gif", "video_file"),
+      type: DataTypes.ENUM("image", "gif", "video_file", "audio_file"),
       allowNull: false
     },
     mime_type: {

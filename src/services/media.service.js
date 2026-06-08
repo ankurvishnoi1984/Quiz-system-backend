@@ -31,7 +31,7 @@ function assertDepartmentAccess(user, department) {
 
 async function compressUploadedFile(file) {
   const mediaType = getMediaTypeFromMime(file.mimetype);
-  if (mediaType === "video_file" || mediaType === "gif") {
+  if (mediaType === "video_file" || mediaType === "gif" || mediaType === "audio_file") {
     return { widthPx: null, heightPx: null, fileSizeBytes: file.size };
   }
 

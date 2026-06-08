@@ -40,7 +40,7 @@ const Question = sequelize.define(
       allowNull: true
     },
     media_type: {
-      type: DataTypes.ENUM("image", "gif", "video_file", "video_embed"),
+      type: DataTypes.ENUM("image", "gif", "video_file", "video_embed", "audio_file"),
       allowNull: true
     },
     media_thumbnail_url: {

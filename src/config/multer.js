@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 const fileFilter = (_req, file, cb) => {
   const mediaType = getMediaTypeFromMime(file.mimetype);
   if (!mediaType) {
-    return cb(new Error("Only image and video files are allowed"));
+    return cb(new Error("Only image, video, and audio files are allowed"));
   }
   return cb(null, true);
 };
