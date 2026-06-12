@@ -1,5 +1,5 @@
 const { Participant, Session } = require("../models");
-const { signAccessToken } = require("../utils/jwt");
+const { signAccessToken, signRefreshToken, verifyRefreshToken } = require("../utils/jwt");
 const {
   normalizeParticipantEmail,
   normalizeParticipantNickname,
@@ -9,13 +9,62 @@ const { notifyParticipantJoined, notifySessionProgress } = require("./websocket.
 
 const RETURNING_PARTICIPANT_STATUSES = new Set(["live", "paused", "completed", "archived"]);
 
-function buildParticipantAuthToken(session, participant) {
-  return signAccessToken({
+function buildParticipantTokenPayload(session, participant) {
+  return {
     participant_id: participant.participant_id,
     session_id: session.session_id,
     dept_id: session.dept_id,
     role: "participant"
-  });
+  };
+}
+
+function buildParticipantAuthTokens(session, participant) {
+  const payload = buildParticipantTokenPayload(session, participant);
+  return {
+    access_token: signAccessToken(payload),
+    refresh_token: signRefreshToken(payload)
+  };
+}
+
+function buildParticipantAuthToken(session, participant) {
+  return buildParticipantAuthTokens(session, participant).access_token;
+}
+
+async function refreshParticipantAccessToken(refreshToken) {
+  let decoded;
+
+  try {
+    decoded = verifyRefreshToken(refreshToken);
+  } catch (err) {
+    const error = new Error("Invalid or expired refresh token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (decoded.role !== "participant") {
+    const error = new Error("Invalid participant refresh token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const participant = await Participant.findByPk(decoded.participant_id);
+  if (!participant) {
+    const error = new Error("Participant not found");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const session = await Session.findByPk(participant.session_id);
+  if (!session) {
+    const error = new Error("Session not found");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const payload = buildParticipantTokenPayload(session, participant);
+  return {
+    access_token: signAccessToken(payload)
+  };
 }
 
 function wantsFreshParticipantIdentity(payload) {
@@ -133,9 +182,11 @@ async function finalizeParticipantJoin(session, participant, { isReturning = fal
   await touchParticipant(participant, payload);
 
   const refreshed = await Participant.findByPk(participant.participant_id);
+  const tokens = buildParticipantAuthTokens(session, refreshed);
   const result = {
     participant: refreshed,
-    token: buildParticipantAuthToken(session, refreshed),
+    token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
     is_returning: isReturning
   };
 
@@ -156,6 +207,8 @@ module.exports = {
   assertParticipantCapacity,
   assertSessionAcceptingJoin,
   buildParticipantAuthToken,
+  buildParticipantAuthTokens,
+  refreshParticipantAccessToken,
   finalizeParticipantJoin,
   findParticipantByDeviceFingerprint,
   findParticipantByNameEmail,

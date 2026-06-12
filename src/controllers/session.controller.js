@@ -166,6 +166,9 @@ async function lookupByCode(req, res) {
   try {
     const session = await getSessionByCode(req.params.code);
     const joinBlock = await getSessionJoinBlockInfo(session);
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     return successResponse(
       res,
       {
@@ -211,6 +214,7 @@ async function joinByCode(req, res) {
       {
         participant: result.participant,
         participant_token: result.token,
+        participant_refresh_token: result.refresh_token,
         is_returning: Boolean(result.is_returning),
         session_state: result.session_state ?? null
       },

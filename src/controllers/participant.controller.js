@@ -2,6 +2,7 @@ const { successResponse, errorResponse } = require("../utils/response");
 const {
   assertNameEmailSessionStateAllowed,
   getParticipantSessionState,
+  refreshParticipantAccessToken,
   saveParticipantSessionState
 } = require("../services/participant.service");
 
@@ -28,7 +29,23 @@ async function saveMySessionState(req, res) {
   }
 }
 
+async function refresh(req, res) {
+  try {
+    const refreshToken = req.body?.refresh_token;
+
+    if (!refreshToken) {
+      return errorResponse(res, "refresh_token is required", 400);
+    }
+
+    const result = await refreshParticipantAccessToken(refreshToken);
+    return successResponse(res, result, "Access token refreshed", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   getMySessionState,
-  saveMySessionState
+  saveMySessionState,
+  refresh
 };
