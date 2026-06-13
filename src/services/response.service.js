@@ -559,11 +559,19 @@ async function getQuestionResults({ questionId, user }) {
   return buildQuestionResultsPayload(loadedQuestion, responses);
 }
 
+function questionAllowsParticipantAggregateResults(question) {
+  if (question.question_type === "poll") return true;
+  if (question.question_type === "survey") {
+    return getEffectiveQuestionType(question) !== "open_text";
+  }
+  return false;
+}
+
 async function getParticipantSurveyQuestionResults({ questionId, participant }) {
   const { question, responses } = await loadQuestionWithResponses(questionId);
 
-  if (question.question_type !== "survey") {
-    const error = new Error("Results are available only for survey questions");
+  if (!questionAllowsParticipantAggregateResults(question)) {
+    const error = new Error("Results are not available for this question type");
     error.statusCode = 400;
     throw error;
   }

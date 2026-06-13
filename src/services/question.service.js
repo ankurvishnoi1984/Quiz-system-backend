@@ -450,9 +450,10 @@ async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
   const isSurvey = question.question_type === "survey";
+  const isPoll = question.question_type === "poll";
 
-  if (!question.is_quiz_mode && !isSurvey) {
-    const error = new Error("Results can be shown only for quiz or survey questions");
+  if (!question.is_quiz_mode && !isSurvey && !isPoll) {
+    const error = new Error("Results can be shown only for quiz, poll, or survey questions");
     error.statusCode = 400;
     throw error;
   }
