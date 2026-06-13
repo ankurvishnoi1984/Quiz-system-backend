@@ -560,7 +560,7 @@ async function getQuestionResults({ questionId, user }) {
 }
 
 function questionAllowsParticipantAggregateResults(question) {
-  if (question.question_type === "poll") return true;
+  if (question.question_type === "poll" || question.question_type === "rating") return true;
   if (question.question_type === "survey") {
     return getEffectiveQuestionType(question) !== "open_text";
   }
