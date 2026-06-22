@@ -105,6 +105,7 @@ async function update(req, res) {
         leaderboard_enabled: session.leaderboard_enabled,
         show_question_leaderboard: session.show_question_leaderboard,
         participant_navigation_enabled: session.participant_navigation_enabled !== false,
+        quiz_total_time_minutes: session.quiz_total_time_minutes ?? null,
         allow_late_join: Boolean(session.allow_late_join)
       });
     }
@@ -185,6 +186,7 @@ async function lookupByCode(req, res) {
           leaderboard_enabled: Boolean(session.leaderboard_enabled),
           show_question_leaderboard: Boolean(session.show_question_leaderboard),
           participant_navigation_enabled: session.participant_navigation_enabled !== false,
+          quiz_total_time_minutes: session.quiz_total_time_minutes ?? null,
           allow_late_join: Boolean(session.allow_late_join),
           join_blocked: Boolean(joinBlock.blocked),
           join_blocked_message: joinBlock.message || null

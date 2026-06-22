@@ -3,6 +3,16 @@ const { Question } = require("../models");
 
 const MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE = "Session has already started";
 
+function isSessionQuizTotalTimeEnabled(session) {
+  if (!session) return false;
+  const minutes = Number(session?.quiz_total_time_minutes);
+  return (
+    participantNavigationEnabled(session?.participant_navigation_enabled) &&
+    Number.isFinite(minutes) &&
+    minutes > 0
+  );
+}
+
 /** DB/Sequelize may return 0/1; never use `value !== false` for booleans. */
 function participantNavigationEnabled(value) {
   if (value === undefined || value === null) return true;
@@ -68,6 +78,7 @@ function sessionHasTimedQuestions(questions = []) {
  * @param {Array|boolean} [questionsOrHasTimed] Question list, or boolean from DB lookup.
  */
 function isStrictLateJoinSession(session, questionsOrHasTimed = []) {
+  if (isSessionQuizTotalTimeEnabled(session)) return false;
   if (session?.participant_navigation_enabled !== false) return false;
   if (typeof questionsOrHasTimed === "boolean") return questionsOrHasTimed;
   return sessionHasTimedQuestions(questionsOrHasTimed);
@@ -87,6 +98,7 @@ async function sessionHasTimedQuestionsInDb(sessionId) {
 module.exports = {
   MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE,
   participantNavigationEnabled,
+  isSessionQuizTotalTimeEnabled,
   sessionHasTimedQuestions,
   isStrictLateJoinSession,
   sessionHasTimedQuestionsInDb,

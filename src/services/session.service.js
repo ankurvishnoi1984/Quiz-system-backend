@@ -13,6 +13,7 @@ const {
   isMultiNavTimedJoinClosed,
   MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE
 } = require("../utils/sessionFlags");
+const { ensureAllQuestionsLiveForQuizTotalTimeSession } = require("./question.service");
 const {
   assertParticipantCapacity,
   assertSessionAcceptingJoin,
@@ -195,6 +196,10 @@ async function createSession({ deptId, input, user }) {
        input.participant_navigation_enabled !== undefined
          ? Boolean(input.participant_navigation_enabled)
          : false,
+     quiz_total_time_minutes:
+       input.participant_navigation_enabled && input.quiz_total_time_minutes != null
+         ? Number(input.quiz_total_time_minutes)
+         : null,
      qr_code_url: input.qr_code_url || null
    });
 }
@@ -253,6 +258,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         leaderboard_enabled: source.leaderboard_enabled ?? true,
         show_question_leaderboard: source.show_question_leaderboard ?? false,
         participant_navigation_enabled: source.participant_navigation_enabled ?? true,
+        quiz_total_time_minutes: source.quiz_total_time_minutes ?? null,
         qr_code_url: null
       },
       { transaction }
@@ -353,6 +359,21 @@ async function updateSession({ sessionId, input, user }) {
     }
   }
 
+  const nextParticipantNavigationEnabled =
+    input.participant_navigation_enabled !== undefined
+      ? Boolean(input.participant_navigation_enabled)
+      : session.participant_navigation_enabled;
+
+  let nextQuizTotalTimeMinutes = session.quiz_total_time_minutes;
+  if (!nextParticipantNavigationEnabled) {
+    nextQuizTotalTimeMinutes = null;
+  } else if (input.quiz_total_time_minutes !== undefined) {
+    nextQuizTotalTimeMinutes =
+      input.quiz_total_time_minutes == null || input.quiz_total_time_minutes === ""
+        ? null
+        : Number(input.quiz_total_time_minutes);
+  }
+
   Object.assign(session, {
     title: input.title !== undefined ? input.title : session.title,
     description: input.description !== undefined ? input.description : session.description,
@@ -380,6 +401,7 @@ async function updateSession({ sessionId, input, user }) {
       input.participant_navigation_enabled !== undefined
         ? Boolean(input.participant_navigation_enabled)
         : session.participant_navigation_enabled,
+    quiz_total_time_minutes: nextQuizTotalTimeMinutes,
     join_type:
       input.join_type !== undefined ? input.join_type : session.join_type,
     scheduled_date:
@@ -428,6 +450,10 @@ async function transitionSessionStatus({ sessionId, user, action }) {
   if (action === "start" && !session.started_at) session.started_at = new Date();
   if (action === "end") session.ended_at = new Date();
   await session.save();
+
+  if (action === "start") {
+    await ensureAllQuestionsLiveForQuizTotalTimeSession(session);
+  }
 
   return session;
 }

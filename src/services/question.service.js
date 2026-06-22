@@ -7,6 +7,7 @@ const {
   Client,
   User
 } = require("../models");
+const { isSessionQuizTotalTimeEnabled } = require("../utils/sessionFlags");
 
 function isParticipantNavigationEnabled(session) {
   return session.participant_navigation_enabled !== false;
@@ -345,6 +346,13 @@ async function reorderQuestions({ sessionId, orderedIds, user }) {
 async function setQuestionLiveState({ questionId, user, isLive }) {
   const question = await getQuestionById({ questionId, user });
   const session = await getSessionForQuestionFlow(question.session_id);
+  if (isSessionQuizTotalTimeEnabled(session)) {
+    const error = new Error(
+      "Question activation is managed automatically for quiz total time sessions"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
   if (session.status !== "live" && isLive) {
     const error = new Error("Question can be activated only in live sessions");
     error.statusCode = 400;
@@ -521,6 +529,14 @@ async function activateAllQuestionsForSession({ sessionId, user }) {
   const session = await getSessionForQuestionFlow(sessionId);
   assertScopeAccess(user, session);
 
+  if (isSessionQuizTotalTimeEnabled(session)) {
+    const error = new Error(
+      "All questions are activated automatically when a quiz total time session is launched"
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (session.status !== "live" && session.status !== "paused") {
     const error = new Error("Questions can be activated only while the session is live");
     error.statusCode = 400;
@@ -571,6 +587,33 @@ async function activateAllQuestionsForSession({ sessionId, user }) {
     where: { question_id: questionIds },
     include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
   });
+}
+
+/** Quiz total time: make every question live when the host launches the session. */
+async function ensureAllQuestionsLiveForQuizTotalTimeSession(session) {
+  if (!isSessionQuizTotalTimeEnabled(session)) return [];
+
+  const inactive = await Question.findAll({
+    where: { session_id: session.session_id, is_live: false },
+    attributes: ["question_id"]
+  });
+  if (!inactive.length) return [];
+
+  const now = new Date();
+  const questionIds = inactive.map((q) => q.question_id);
+  await Question.update(
+    {
+      is_live: true,
+      live_activated_at: now,
+      submissions_closed: false,
+      open_for_reattempt: false,
+      answer_revealed: false,
+      show_leaderboard: false
+    },
+    { where: { session_id: session.session_id, question_id: questionIds } }
+  );
+
+  return questionIds;
 }
 
 async function closeAllQuestionSubmissionsForSession({ sessionId, user }) {
@@ -669,6 +712,7 @@ module.exports = {
   closeQuestionSubmissions,
   closeAllQuestionSubmissionsForSession,
   activateAllQuestionsForSession,
+  ensureAllQuestionsLiveForQuizTotalTimeSession,
   openQuestionForReattempt,
   getCorrectOptionIds,
   formatQuestionForParticipant

@@ -6,6 +6,7 @@ const EMPTY_PARTICIPANT_SESSION_STATE = Object.freeze({
   quizSubmittedQuestionIds: {},
   quizExplicitSubmittedQuestionIds: {},
   quizCountdownByQuestion: {},
+  quizSessionCountdown: null,
   quizQuestionOpenedAt: {}
 });
 
@@ -48,6 +49,10 @@ function normalizeParticipantSessionState(raw) {
     quizSubmittedQuestionIds: normalizeRecord(raw.quizSubmittedQuestionIds),
     quizExplicitSubmittedQuestionIds: normalizeRecord(raw.quizExplicitSubmittedQuestionIds),
     quizCountdownByQuestion: normalizeRecord(raw.quizCountdownByQuestion),
+    quizSessionCountdown:
+      raw.quizSessionCountdown && typeof raw.quizSessionCountdown === "object"
+        ? raw.quizSessionCountdown
+        : null,
     quizQuestionOpenedAt: normalizeRecord(raw.quizQuestionOpenedAt)
   };
 }

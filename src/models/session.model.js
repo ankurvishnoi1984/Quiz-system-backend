@@ -82,6 +82,11 @@ const Session = sequelize.define(
       allowNull: false,
       defaultValue: false
     },
+    quiz_total_time_minutes: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null
+    },
     qr_code_url: {
       type: DataTypes.TEXT,
       allowNull: true
