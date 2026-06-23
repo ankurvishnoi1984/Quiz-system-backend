@@ -38,7 +38,37 @@ function validateLoginPayload(payload) {
   return errors;
 }
 
+function validateForgotPasswordPayload(payload) {
+  const errors = [];
+
+  if (!payload?.email || typeof payload.email !== "string" || !payload.email.trim()) {
+    errors.push("email is required");
+  }
+
+  return errors;
+}
+
+function validateChangePasswordPayload(payload, { mustChangePassword = false } = {}) {
+  const errors = [];
+
+  if (!mustChangePassword) {
+    if (!payload?.current_password || typeof payload.current_password !== "string") {
+      errors.push("current_password is required");
+    }
+  }
+
+  if (!payload?.new_password || typeof payload.new_password !== "string") {
+    errors.push("new_password is required");
+  } else if (payload.new_password.length < 8) {
+    errors.push("new_password must be at least 8 characters");
+  }
+
+  return errors;
+}
+
 module.exports = {
   validateRegisterPayload,
-  validateLoginPayload
+  validateLoginPayload,
+  validateForgotPasswordPayload,
+  validateChangePasswordPayload
 };

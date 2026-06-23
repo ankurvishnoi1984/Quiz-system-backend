@@ -9,6 +9,7 @@ const Response = require("./response.model");
 const QaQuestion = require("./qa-question.model");
 const QaUpvote = require("./qa-upvote.model");
 const MediaAsset = require("./media-asset.model");
+const MailConfig = require("./mail-config.model");
 
 Client.hasMany(Department, { foreignKey: "client_id" });
 Department.belongsTo(Client, { foreignKey: "client_id" });
@@ -64,5 +65,6 @@ module.exports = {
   Response,
   QaQuestion,
   QaUpvote,
-  MediaAsset
+  MediaAsset,
+  MailConfig
 };

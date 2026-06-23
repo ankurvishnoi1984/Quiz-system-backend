@@ -46,6 +46,11 @@ const User = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true
     },
+    must_change_password: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: true

@@ -1,10 +1,19 @@
 const bcrypt = require("bcryptjs");
 const { User } = require("../models");
+const { sendPasswordResetEmail } = require("./email.service");
+const { generateTemporaryPassword } = require("../utils/password");
 const {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken
 } = require("../utils/jwt");
+
+const FORGOT_PASSWORD_MESSAGE =
+  "If an account exists for that email, a new temporary password has been sent.";
+
+function isMustChangePassword(value) {
+  return value === true || value === 1;
+}
 
 function buildUserPayload(user) {
   return {
@@ -13,7 +22,8 @@ function buildUserPayload(user) {
     full_name: user.full_name,
     role: user.role,
     client_id: user.client_id,
-    dept_id: user.dept_id
+    dept_id: user.dept_id,
+    must_change_password: isMustChangePassword(user.must_change_password)
   };
 }
 
@@ -43,7 +53,8 @@ async function registerUser(input) {
     password_hash,
     role: input.role,
     client_id: input.client_id || null,
-    dept_id: input.dept_id || null
+    dept_id: input.dept_id || null,
+    must_change_password: false
   });
 
   const payload = buildUserPayload(user);
@@ -107,8 +118,90 @@ async function refreshAccessToken(refreshToken) {
   };
 }
 
+async function requestPasswordReset(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const user = await User.findOne({ where: { email: normalizedEmail } });
+
+  if (!user || !user.is_active) {
+    return { message: FORGOT_PASSWORD_MESSAGE };
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  user.password_hash = await bcrypt.hash(temporaryPassword, 10);
+  user.must_change_password = true;
+  await user.save();
+
+  await sendPasswordResetEmail({
+    to: user.email,
+    fullName: user.full_name,
+    temporaryPassword
+  });
+
+  return { message: FORGOT_PASSWORD_MESSAGE };
+}
+
+async function changePassword(userId, body = {}) {
+  const user = await User.findByPk(userId);
+  if (!user || !user.is_active) {
+    const error = new Error("User not found or inactive");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const newPassword = body.new_password ?? body.newPassword;
+  if (!newPassword || typeof newPassword !== "string") {
+    const error = new Error("new_password is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (newPassword.length < 8) {
+    const error = new Error("new_password must be at least 8 characters");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const forcedChange = isMustChangePassword(user.must_change_password);
+  const currentPassword = body.current_password ?? body.currentPassword;
+
+  if (!forcedChange) {
+    if (!currentPassword || typeof currentPassword !== "string") {
+      const error = new Error("current_password is required");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const isCurrentValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isCurrentValid) {
+      const error = new Error("Current password is incorrect");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
+  if (isSamePassword) {
+    const error = new Error("New password must be different from the current password");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  user.password_hash = await bcrypt.hash(newPassword, 10);
+  user.must_change_password = false;
+  await user.save();
+
+  const payload = buildUserPayload(user);
+  return {
+    user: payload,
+    tokens: buildAuthTokens(payload)
+  };
+}
+
 module.exports = {
   registerUser,
   loginUser,
-  refreshAccessToken
+  refreshAccessToken,
+  requestPasswordReset,
+  changePassword,
+  isMustChangePassword
 };
