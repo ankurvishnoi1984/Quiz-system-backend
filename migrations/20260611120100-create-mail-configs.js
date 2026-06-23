@@ -80,25 +80,7 @@ module.exports = {
       }
     });
 
-    await queryInterface.bulkInsert("mail_configs", [
-      {
-        sender_name: "Netcast",
-        smtp_host: "smtp-relay.gmail.com",
-        smtp_port: 587,
-        smtp_user: "customercare1@netcastservice.com",
-        smtp_pass: "lqnocelepdfvzzwy",
-        smtp_from: "noreply@company.com",
-        secure: true,
-        daily_limit: 5000,
-        batch_limit: 1,
-        sent_count: 0,
-        is_active: true,
-        priority: 1,
-        last_used_at: null,
-        created_at: new Date(),
-        updated_at: new Date()
-      }
-    ]);
+
   },
 
   async down(queryInterface) {
