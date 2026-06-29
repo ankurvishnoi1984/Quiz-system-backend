@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const { MailConfig } = require("../models");
+const { renderPasswordResetEmail } = require("./email-templates");
 
 async function getActiveMailConfig() {
   return MailConfig.findOne({
@@ -27,8 +28,7 @@ function createTransport(config) {
   });
 }
 
-async function sendMail({ to, subject, text, html }) {
-  const config = await getActiveMailConfig();
+async function sendMailWithConfig(config, { to, subject, text, html }) {
   if (!config) {
     const error = new Error("No active mail configuration found");
     error.statusCode = 503;
@@ -58,29 +58,21 @@ async function sendMail({ to, subject, text, html }) {
   await config.save();
 }
 
+async function sendMail(payload) {
+  const config = await getActiveMailConfig();
+  await sendMailWithConfig(config, payload);
+}
+
 async function sendPasswordResetEmail({ to, fullName, temporaryPassword }) {
-  const greeting = fullName ? `Hello ${fullName},` : "Hello,";
-  const subject = "Your password has been reset";
-  const text = `${greeting}
+  const config = await getActiveMailConfig();
+  const brandName = config?.sender_name || "Quiz Platform";
+  const { subject, text, html } = renderPasswordResetEmail({
+    fullName,
+    temporaryPassword,
+    brandName
+  });
 
-Your password has been reset. Use the temporary password below to sign in:
-
-${temporaryPassword}
-
-You will be asked to choose a new password immediately after your first login.
-
-If you did not request this reset, please contact your administrator.
-
-— Quiz Platform`;
-
-  const html = `<p>${greeting}</p>
-<p>Your password has been reset. Use the temporary password below to sign in:</p>
-<p style="font-family:monospace;font-size:16px;font-weight:bold;letter-spacing:0.05em;">${temporaryPassword}</p>
-<p>You will be asked to choose a new password immediately after your first login.</p>
-<p>If you did not request this reset, please contact your administrator.</p>
-<p>— Quiz Platform</p>`;
-
-  await sendMail({ to, subject, text, html });
+  await sendMailWithConfig(config, { to, subject, text, html });
 }
 
 module.exports = {
