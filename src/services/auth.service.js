@@ -8,8 +8,11 @@ const {
   verifyRefreshToken
 } = require("../utils/jwt");
 
-const FORGOT_PASSWORD_MESSAGE =
-  "If an account exists for that email, a new temporary password has been sent.";
+const FORGOT_PASSWORD_SUCCESS_MESSAGE =
+  "Reset credentials have been sent to your email. Please check your inbox.";
+
+const FORGOT_PASSWORD_NOT_FOUND_MESSAGE =
+  "Account for the given email does not exist";
 
 function isMustChangePassword(value) {
   return value === true || value === 1;
@@ -123,7 +126,9 @@ async function requestPasswordReset(email) {
   const user = await User.findOne({ where: { email: normalizedEmail } });
 
   if (!user || !user.is_active) {
-    return { message: FORGOT_PASSWORD_MESSAGE };
+    const error = new Error(FORGOT_PASSWORD_NOT_FOUND_MESSAGE);
+    error.statusCode = 404;
+    throw error;
   }
 
   const temporaryPassword = generateTemporaryPassword();
@@ -137,7 +142,7 @@ async function requestPasswordReset(email) {
     temporaryPassword
   });
 
-  return { message: FORGOT_PASSWORD_MESSAGE };
+  return { message: FORGOT_PASSWORD_SUCCESS_MESSAGE, sent: true };
 }
 
 async function changePassword(userId, body = {}) {
