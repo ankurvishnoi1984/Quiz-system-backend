@@ -1,5 +1,7 @@
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
 
+const EMAIL_LOGO_CID = "quiz-app-logo";
+
 const BRAND = {
   navy: "#0f172a",
   navyMid: "#1e3a8a",
@@ -28,6 +30,101 @@ function buildLoginUrl() {
   return origin ? `${origin}/login` : "/login";
 }
 
+function buildEmailLogoUrl() {
+  const explicit = process.env.EMAIL_LOGO_URL || process.env.APP_LOGO_URL;
+  if (explicit) {
+    return String(explicit).trim();
+  }
+
+  const origin = getFrontendPublicUrl();
+  const path = process.env.APP_LOGO_PATH || "/log5.png";
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (origin) {
+    return `${origin}${normalizedPath}`;
+  }
+
+  const apiOrigin =
+    process.env.API_PUBLIC_URL ||
+    process.env.PUBLIC_API_URL ||
+    process.env.BACKEND_PUBLIC_URL;
+  if (apiOrigin) {
+    return `${String(apiOrigin).replace(/\/+$/, "")}/branding/email-logo.png`;
+  }
+
+  return "";
+}
+
+function resolveEmailLogoSrc({ logoCid, logoUrl }) {
+  if (logoCid) {
+    return `cid:${logoCid}`;
+  }
+
+  const url = String(logoUrl || "").trim();
+  if (!url) return "";
+
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith("/")) {
+    const origin = getFrontendPublicUrl();
+    if (origin) {
+      return `${origin}${url}`;
+    }
+  }
+
+  return "";
+}
+
+function renderEmailHeaderBrand(brandName, { logoCid, logoUrl } = {}) {
+  const safeBrand = escapeHtml(brandName || "Quiz Platform");
+  const src = resolveEmailLogoSrc({ logoCid, logoUrl });
+
+  if (src) {
+    return `
+                <tr>
+                  <td style="padding-bottom:18px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="background-color:rgba(255,255,255,0.96);border-radius:14px;padding:12px 18px;">
+                          <img
+                            class="email-brand-logo"
+                            src="${escapeHtml(src)}"
+                            alt="${safeBrand}"
+                            width="180"
+                            style="display:block;border:0;outline:none;text-decoration:none;width:180px;max-width:100%;height:auto;max-height:64px;object-fit:contain;"
+                          />
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:4px;">
+                    <p style="margin:0;font-size:18px;font-weight:700;color:${BRAND.white};letter-spacing:-0.01em;">${safeBrand}</p>
+                    <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.82);">Account notification</p>
+                  </td>
+                </tr>`;
+  }
+
+  return `
+                <tr>
+                  <td style="vertical-align:middle;padding-bottom:4px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="width:48px;height:48px;background-color:rgba(255,255,255,0.15);border-radius:12px;text-align:center;vertical-align:middle;font-size:22px;font-weight:700;color:${BRAND.white};line-height:48px;">
+                          Q
+                        </td>
+                        <td style="padding-left:14px;vertical-align:middle;">
+                          <p style="margin:0;font-size:18px;font-weight:700;color:${BRAND.white};letter-spacing:-0.01em;">${safeBrand}</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:rgba(255,255,255,0.82);">Account notification</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>`;
+}
+
 /**
  * Shared responsive email shell (table layout for client compatibility).
  */
@@ -36,12 +133,18 @@ function renderEmailLayout({
   brandName,
   title,
   bodyHtml,
-  footerNote
+  footerNote,
+  logoCid,
+  logoUrl
 }) {
   const safeBrand = escapeHtml(brandName || "Quiz Platform");
   const safeTitle = escapeHtml(title);
   const safePreheader = escapeHtml(preheader);
   const year = new Date().getFullYear();
+  const brandHeaderHtml = renderEmailHeaderBrand(brandName, {
+    logoCid,
+    logoUrl: logoUrl ?? buildEmailLogoUrl()
+  });
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -64,6 +167,7 @@ function renderEmailLayout({
       .email-container { width: 100% !important; }
       .email-body-cell { padding: 28px 20px !important; }
       .email-header-cell { padding: 28px 20px !important; }
+      .email-brand-logo { width: 150px !important; max-height: 54px !important; }
       .password-box { font-size: 22px !important; letter-spacing: 0.12em !important; }
       .cta-button { display: block !important; width: 100% !important; box-sizing: border-box !important; }
     }
@@ -80,21 +184,7 @@ function renderEmailLayout({
           <tr>
             <td class="email-header-cell" style="background:linear-gradient(135deg,${BRAND.navy} 0%,${BRAND.navyMid} 55%,${BRAND.blue} 100%);border-radius:16px 16px 0 0;padding:32px 40px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                      <tr>
-                        <td style="width:44px;height:44px;background-color:rgba(255,255,255,0.15);border-radius:12px;text-align:center;vertical-align:middle;font-size:22px;font-weight:700;color:${BRAND.white};line-height:44px;">
-                          Q
-                        </td>
-                        <td style="padding-left:14px;vertical-align:middle;">
-                          <p style="margin:0;font-size:18px;font-weight:700;color:${BRAND.white};letter-spacing:-0.01em;">${safeBrand}</p>
-                          <p style="margin:4px 0 0;font-size:13px;color:rgba(255,255,255,0.82);">Account notification</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
+                ${brandHeaderHtml}
                 <tr>
                   <td style="padding-top:24px;">
                     <h1 style="margin:0;font-size:26px;line-height:1.3;font-weight:700;color:${BRAND.white};letter-spacing:-0.02em;">${safeTitle}</h1>
@@ -132,7 +222,7 @@ function renderEmailLayout({
 </html>`;
 }
 
-function renderPasswordResetEmail({ fullName, temporaryPassword, brandName }) {
+function renderPasswordResetEmail({ fullName, temporaryPassword, brandName, logoCid, logoUrl }) {
   const greeting = fullName ? `Hello ${fullName},` : "Hello,";
   const loginUrl = buildLoginUrl();
   const safePassword = escapeHtml(temporaryPassword);
@@ -209,7 +299,9 @@ function renderPasswordResetEmail({ fullName, temporaryPassword, brandName }) {
     brandName,
     title: "Password reset",
     bodyHtml,
-    footerNote: "You received this email because a password reset was requested for your account."
+    footerNote: "You received this email because a password reset was requested for your account.",
+    logoCid,
+    logoUrl
   });
 
   const text = `${greeting}
@@ -239,5 +331,7 @@ module.exports = {
   escapeHtml,
   renderEmailLayout,
   renderPasswordResetEmail,
-  buildLoginUrl
+  buildLoginUrl,
+  buildEmailLogoUrl,
+  EMAIL_LOGO_CID
 };

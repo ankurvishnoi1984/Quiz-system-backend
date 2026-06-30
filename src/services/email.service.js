@@ -1,6 +1,22 @@
+const fs = require("fs");
+const path = require("path");
 const nodemailer = require("nodemailer");
 const { MailConfig } = require("../models");
-const { renderPasswordResetEmail } = require("./email-templates");
+const { renderPasswordResetEmail, EMAIL_LOGO_CID } = require("./email-templates");
+
+const EMAIL_LOGO_PATH = path.join(__dirname, "../../assets/email-logo.png");
+
+function getEmailLogoAttachment() {
+  if (!fs.existsSync(EMAIL_LOGO_PATH)) {
+    return null;
+  }
+
+  return {
+    filename: "email-logo.png",
+    path: EMAIL_LOGO_PATH,
+    cid: EMAIL_LOGO_CID
+  };
+}
 
 async function getActiveMailConfig() {
   return MailConfig.findOne({
@@ -28,7 +44,7 @@ function createTransport(config) {
   });
 }
 
-async function sendMailWithConfig(config, { to, subject, text, html }) {
+async function sendMailWithConfig(config, { to, subject, text, html, attachments = [] }) {
   if (!config) {
     const error = new Error("No active mail configuration found");
     error.statusCode = 503;
@@ -50,7 +66,8 @@ async function sendMailWithConfig(config, { to, subject, text, html }) {
     to,
     subject,
     text,
-    html
+    html,
+    attachments
   });
 
   config.sent_count = Number(config.sent_count || 0) + 1;
@@ -66,13 +83,21 @@ async function sendMail(payload) {
 async function sendPasswordResetEmail({ to, fullName, temporaryPassword }) {
   const config = await getActiveMailConfig();
   const brandName = config?.sender_name || "Quiz Platform";
+  const logoAttachment = getEmailLogoAttachment();
   const { subject, text, html } = renderPasswordResetEmail({
     fullName,
     temporaryPassword,
-    brandName
+    brandName,
+    logoCid: logoAttachment ? EMAIL_LOGO_CID : null
   });
 
-  await sendMailWithConfig(config, { to, subject, text, html });
+  await sendMailWithConfig(config, {
+    to,
+    subject,
+    text,
+    html,
+    attachments: logoAttachment ? [logoAttachment] : []
+  });
 }
 
 module.exports = {

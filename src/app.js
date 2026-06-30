@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const apiRoutes = require("./routes");
@@ -27,6 +28,15 @@ app.use(
     next();
   },
   express.static("uploads")
+);
+app.use(
+  "/branding",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    next();
+  },
+  express.static(path.join(__dirname, "../assets"))
 );
 
 /**
