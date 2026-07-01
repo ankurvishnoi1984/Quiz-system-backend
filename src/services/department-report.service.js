@@ -160,7 +160,8 @@ async function buildPeriodMetrics(sessions, sessionIds) {
     return {
       total_sessions: 0,
       total_participants: 0,
-      avg_engagement_rate_percent: 0
+      avg_engagement_rate_percent: 0,
+      session_metrics: []
     };
   }
 
@@ -241,7 +242,7 @@ async function getDepartmentReport({ deptId, user, from: fromParam, to: toParam 
   ]);
 
   const metricsBySessionId = new Map(
-    currentMetrics.session_metrics.map((row) => [row.session_id, row])
+    (currentMetrics.session_metrics || []).map((row) => [row.session_id, row])
   );
 
   const hostCounts = new Map();

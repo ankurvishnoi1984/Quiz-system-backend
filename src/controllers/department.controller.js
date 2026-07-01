@@ -29,7 +29,19 @@ async function create(req, res) {
 
 async function list(req, res) {
   try {
-    const clientId = req.query.client_id ? Number(req.query.client_id) : null;
+    const user = req.user;
+    let clientId = req.query.client_id ? Number(req.query.client_id) : null;
+
+    if (user.role === "client_admin") {
+      if (!user.client_id) {
+        return errorResponse(res, "Client admin has no client assigned", 403);
+      }
+      clientId = Number(user.client_id);
+    } else if (["dept_admin", "host"].includes(user.role) && user.dept_id) {
+      const department = await getDepartmentById(user.dept_id);
+      clientId = Number(department.client_id);
+    }
+
     const departments = await getDepartments({
       client_id: clientId
     });
