@@ -40,8 +40,26 @@ function buildSessionJoinUrl(sessionCode, req) {
   return origin ? `${origin}${path}` : path;
 }
 
+function buildPresentViewPath(sessionId, token) {
+  const id = sessionId != null ? String(sessionId).trim() : "";
+  const t = token != null ? String(token).trim() : "";
+  if (!id || !t) return "/present/view";
+  return `/present/view?session=${encodeURIComponent(id)}&token=${encodeURIComponent(t)}`;
+}
+
+function buildPresentViewUrl(sessionId, token, reqOrOrigin) {
+  const origin =
+    typeof reqOrOrigin === "string"
+      ? trimTrailingSlash(reqOrOrigin)
+      : getFrontendPublicUrl(reqOrOrigin);
+  const path = buildPresentViewPath(sessionId, token);
+  return origin ? `${origin}${path}` : path;
+}
+
 module.exports = {
   getFrontendPublicUrl,
   buildSessionJoinPath,
-  buildSessionJoinUrl
+  buildSessionJoinUrl,
+  buildPresentViewPath,
+  buildPresentViewUrl
 };

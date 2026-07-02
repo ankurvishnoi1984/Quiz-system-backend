@@ -103,5 +103,15 @@ router.get(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.qr
 );
+router.post(
+  "/sessions/:sessionId/present-view-link",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.presentViewLink
+);
+router.put(
+  "/sessions/:sessionId/present-slide",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.presentSlide
+);
 
 module.exports = router;

@@ -170,6 +170,12 @@ async function buildQuestionLeaderboard(questionId, limit = 10) {
 }
 
 function assertStaffAccess(user, session) {
+  if (user?.role === "presenter_viewer") {
+    if (Number(user.session_id) === Number(session.session_id)) return;
+    const error = new Error("Forbidden: response access denied");
+    error.statusCode = 403;
+    throw error;
+  }
   if (user.role === "super_admin") return;
   if (user.role === "client_admin" && Number(user.client_id) === Number(session.department.client_id)) {
     return;

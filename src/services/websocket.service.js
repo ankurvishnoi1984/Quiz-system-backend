@@ -81,6 +81,14 @@ function setupWebSocketServer(server) {
               user_id: decoded.user_id,
               exp: decoded.exp
             });
+          } else if (decoded.role === "presenter_viewer") {
+            authStatus = "presenter_viewer_ok";
+            wsLog("info", "auth_ok", {
+              session: sessionCode,
+              role: decoded.role,
+              session_id: decoded.session_id,
+              exp: decoded.exp
+            });
           } else {
             authStatus = "token_unknown_role";
             wsLog("warn", "auth_token_unknown_role", {
@@ -423,6 +431,15 @@ async function notifySessionProgress(sessionCode, sessionId) {
   });
 }
 
+function notifyPresentSlideChanged(sessionCode, payload) {
+  if (!sessionCode) return;
+  broadcastToSession(sessionCode, {
+    type: "present_slide_changed",
+    session_id: payload?.session_id ?? null,
+    slide_index: payload?.slide_index ?? 0
+  });
+}
+
 function getConnectionCount(sessionCode) {
   let count = 0;
   activeConnections.forEach((connSet, key) => {
@@ -451,6 +468,7 @@ module.exports = {
   notifySessionSettings,
   notifyParticipantJoined,
   notifySessionProgress,
+  notifyPresentSlideChanged,
   getLiveResults,
   getSessionProgress,
   getConnectionCount,

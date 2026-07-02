@@ -641,5 +641,7 @@ module.exports = {
   getSessionJoinBlockInfo,
   joinSession,
   listSessionParticipants,
-  getSessionQr
+  getSessionQr,
+  assertSessionWriteAccess,
+  getSessionOrThrow
 };

@@ -48,6 +48,28 @@ async function listQaQuestionsForStaff({ sessionId, user }) {
   });
 }
 
+async function listQaQuestionsForPresenterViewer({ sessionId, viewer }) {
+  if (!viewer || viewer.role !== "presenter_viewer") {
+    const error = new Error("Forbidden: Q&A access denied");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (Number(viewer.session_id) !== Number(sessionId)) {
+    const error = new Error("Forbidden: Q&A access denied");
+    error.statusCode = 403;
+    throw error;
+  }
+  return QaQuestion.findAll({
+    where: { session_id: Number(sessionId) },
+    include: [{ model: Participant, attributes: ["participant_id", "nickname"] }],
+    order: [
+      ["is_pinned", "DESC"],
+      ["upvotes", "DESC"],
+      ["created_at", "DESC"]
+    ]
+  });
+}
+
 async function listQaQuestionsForParticipant({ sessionId, participant }) {
   if (Number(participant.session_id) !== Number(sessionId)) {
     const error = new Error("Participant cannot access this session");
@@ -157,6 +179,7 @@ async function moderateQuestion({ qaId, action, user, isPinned }) {
 
 module.exports = {
   listQaQuestionsForStaff,
+  listQaQuestionsForPresenterViewer,
   listQaQuestionsForParticipant,
   askQuestion,
   upvoteQuestion,

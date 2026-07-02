@@ -32,6 +32,7 @@ const {
 const { getSessionSummaryReport, getSessionQuestionsReport, getSessionParticipantsReport, getSessionQaReport } = require("../services/session-report.service");
 const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
+const { createPresentViewLink, setPresentSlideIndex } = require("../services/present-view.service");
 
 async function listByDepartment(req, res) {
   try {
@@ -245,6 +246,36 @@ async function duplicate(req, res) {
   }
 }
 
+async function presentViewLink(req, res) {
+  try {
+    const baseUrl = getFrontendPublicUrl(req);
+    const data = await createPresentViewLink({
+      sessionId: Number(req.params.sessionId),
+      user: req.user,
+      baseUrl
+    });
+    return successResponse(res, data, "Present view link created", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function presentSlide(req, res) {
+  try {
+    const slideIndex = Number(req.body?.slide_index)
+    const slideTotal = Number(req.body?.slide_total)
+    const data = await setPresentSlideIndex({
+      sessionId: Number(req.params.sessionId),
+      user: req.user,
+      slideIndex,
+      slideTotal: Number.isFinite(slideTotal) && slideTotal > 0 ? slideTotal : undefined
+    });
+    return successResponse(res, data, "Present slide updated", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function qr(req, res) {
   try {
     const baseUrl = getFrontendPublicUrl(req);
@@ -405,6 +436,8 @@ module.exports = {
   lookupByCode,
   joinByCode,
   qr,
+  presentViewLink,
+  presentSlide,
   closeAllQuestions,
   activateAllQuestions
 };
