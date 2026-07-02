@@ -121,7 +121,8 @@ async function createQuestion({ sessionId, input, user }) {
 
   const isPoll = input.question_type === "poll";
   const isSurvey = input.question_type === "survey";
-  const isNonScored = isPoll || isSurvey;
+  const isEmojiReaction = input.question_type === "emoji_reaction";
+  const isNonScored = isPoll || isSurvey || isEmojiReaction;
 
   const question = await Question.create({
     session_id: session.session_id,
@@ -134,7 +135,7 @@ async function createQuestion({ sessionId, input, user }) {
     is_quiz_mode: isNonScored ? false : input.is_quiz_mode ?? false,
     points_value: isNonScored ? 0 : input.points_value || 10,
     time_limit_seconds: isSurvey ? null : input.time_limit_seconds || null,
-    allow_multiple_select: input.allow_multiple_select ?? false,
+    allow_multiple_select: isEmojiReaction ? false : input.allow_multiple_select ?? false,
     survey_subtype: isSurvey ? input.survey_subtype || null : null,
     rating_min: input.rating_min ?? 1,
     rating_max: input.rating_max ?? 10,
@@ -185,7 +186,8 @@ async function updateQuestion({ questionId, input, user }) {
       input.question_type !== undefined ? input.question_type : question.question_type;
     const isPoll = nextType === "poll";
     const isSurvey = nextType === "survey";
-    const isNonScored = isPoll || isSurvey;
+    const isEmojiReaction = nextType === "emoji_reaction";
+    const isNonScored = isPoll || isSurvey || isEmojiReaction;
 
     Object.assign(question, {
       question_type: nextType,
@@ -217,8 +219,9 @@ async function updateQuestion({ questionId, input, user }) {
           ? input.survey_subtype
           : question.survey_subtype
         : null,
-      allow_multiple_select:
-        input.allow_multiple_select !== undefined
+      allow_multiple_select: isEmojiReaction
+        ? false
+        : input.allow_multiple_select !== undefined
           ? Boolean(input.allow_multiple_select)
           : question.allow_multiple_select,
       rating_min: input.rating_min !== undefined ? input.rating_min : question.rating_min,
@@ -460,8 +463,9 @@ async function setQuestionLeaderboardVisibility({ questionId, user, visible }) {
   const isSurvey = question.question_type === "survey";
   const isPoll = question.question_type === "poll";
   const isRating = question.question_type === "rating";
+  const isEmojiReaction = question.question_type === "emoji_reaction";
 
-  if (!question.is_quiz_mode && !isSurvey && !isPoll && !isRating) {
+  if (!question.is_quiz_mode && !isSurvey && !isPoll && !isRating && !isEmojiReaction) {
     const error = new Error("Results can be shown only for quiz, poll, rating, or survey questions");
     error.statusCode = 400;
     throw error;

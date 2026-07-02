@@ -23,6 +23,7 @@ function surveySubTypeDisplay(subType) {
   const labels = {
     mcq: "Multiple Choice (MCQ)",
     poll: "Poll",
+    emoji_reaction: "Emoji Reaction",
     rating: "Rating",
     open_text: "Open Text",
     word_cloud: "Word Cloud",
@@ -103,7 +104,7 @@ function buildQuestionResponseBreakdown(question, options, responses) {
   const total = questionResponses.length;
   const type = getEffectiveQuestionType(question);
 
-  if (["mcq", "poll", "true_false"].includes(type)) {
+  if (["mcq", "poll", "true_false", "emoji_reaction"].includes(type)) {
     return options.map((opt) => {
       const count = questionResponses.filter(
         (row) => Number(row.option_id) === Number(opt.option_id)

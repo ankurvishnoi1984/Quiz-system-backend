@@ -21,6 +21,18 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
+  if (payload?.question_type === "emoji_reaction") {
+    if (!Array.isArray(payload.options) || payload.options.length !== 5) {
+      errors.push("emoji_reaction must include exactly 5 emoji options");
+    }
+    if (payload?.is_quiz_mode) {
+      errors.push("emoji_reaction cannot be quiz mode");
+    }
+    if (payload?.allow_multiple_select) {
+      errors.push("emoji_reaction does not support multiple selection");
+    }
+  }
+
   if (payload?.question_type === "survey") {
     const allowed = ["mcq", "poll", "rating", "open_text", "word_cloud", "ranking"];
     if (!payload?.survey_subtype || !allowed.includes(payload.survey_subtype)) {

@@ -277,7 +277,8 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
     for (const q of questions) {
       const isPoll = q.question_type === "poll";
       const isSurvey = q.question_type === "survey";
-      const isNonScored = isPoll || isSurvey;
+      const isEmojiReaction = q.question_type === "emoji_reaction";
+      const isNonScored = isPoll || isSurvey || isEmojiReaction;
 
       const newQuestion = await Question.create(
         {

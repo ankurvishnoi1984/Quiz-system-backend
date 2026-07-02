@@ -224,6 +224,7 @@ function supportsMultipleOptionSelection(question) {
 function isNonScoredQuestion(question) {
   return (
     question.question_type === "poll" ||
+    question.question_type === "emoji_reaction" ||
     question.question_type === "survey" ||
     !question.is_quiz_mode
   );
@@ -326,6 +327,12 @@ async function submitResponse({ participant, input }) {
   });
   if (existing && timed && !question.open_for_reattempt) {
     const error = new Error("Response already submitted for this question");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (existing && effectiveType === "emoji_reaction") {
+    const error = new Error("Emoji reaction cannot be changed after submit");
     error.statusCode = 409;
     throw error;
   }
@@ -566,7 +573,13 @@ async function getQuestionResults({ questionId, user }) {
 }
 
 function questionAllowsParticipantAggregateResults(question) {
-  if (question.question_type === "poll" || question.question_type === "rating") return true;
+  if (
+    question.question_type === "poll" ||
+    question.question_type === "rating" ||
+    question.question_type === "emoji_reaction"
+  ) {
+    return true;
+  }
   if (question.question_type === "survey") {
     return getEffectiveQuestionType(question) !== "open_text";
   }
