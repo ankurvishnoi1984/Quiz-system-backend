@@ -8,5 +8,6 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get("/", authorizeRoles("super_admin"), userController.list);
+router.post("/", authorizeRoles("super_admin"), userController.create);
 
 module.exports = router;

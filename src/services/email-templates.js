@@ -327,10 +327,169 @@ If you did not request this reset, ignore this email or contact your administrat
   };
 }
 
+function renderAssignmentDetail(label, value) {
+  if (!value) return "";
+  return `
+    <tr>
+      <td style="padding:8px 0;font-size:14px;color:${BRAND.slateLight};width:120px;vertical-align:top;">${escapeHtml(label)}</td>
+      <td style="padding:8px 0;font-size:14px;color:${BRAND.navy};font-weight:600;">${escapeHtml(value)}</td>
+    </tr>`;
+}
+
+function renderNewUserWelcomeEmail({
+  fullName,
+  email,
+  password,
+  roleLabel,
+  clientName,
+  deptName,
+  createdByName,
+  brandName,
+  logoCid,
+  logoUrl
+}) {
+  const greeting = fullName ? `Hello ${fullName},` : "Hello,";
+  const loginUrl = buildLoginUrl();
+  const safePassword = escapeHtml(password);
+  const safeGreeting = escapeHtml(greeting);
+  const safeEmail = escapeHtml(email);
+  const safeRole = escapeHtml(roleLabel || "User");
+  const safeCreatedBy = escapeHtml(createdByName || "your administrator");
+
+  const assignmentRows = [
+    renderAssignmentDetail("Email", email),
+    renderAssignmentDetail("Role", roleLabel),
+    renderAssignmentDetail("Client", clientName),
+    renderAssignmentDetail("Department", deptName)
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const bodyHtml = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:${BRAND.slate};">${safeGreeting}</p>
+    <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:${BRAND.slate};">
+      Admin has created an account for you on "Quiz Platform". Use the sign-in details below to access the host workspace.
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="background-color:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:12px;padding:20px 22px;">
+          <p style="margin:0 0 14px;font-size:14px;font-weight:700;color:${BRAND.navy};">Account details</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            ${assignmentRows}
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="background-color:${BRAND.amberLight};border:1px solid ${BRAND.amberBorder};border-radius:12px;padding:24px;text-align:center;">
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND.amber};">
+            Password
+          </p>
+          <p class="password-box" style="margin:0;font-family:'SF Mono',SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;font-size:28px;font-weight:700;letter-spacing:0.18em;color:${BRAND.navy};word-break:break-all;">
+            ${safePassword}
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 28px;">
+      <tr>
+        <td style="background-color:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:12px;padding:20px 22px;">
+          <p style="margin:0 0 14px;font-size:14px;font-weight:700;color:${BRAND.navy};">Getting started</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="padding:0 0 10px;vertical-align:top;width:28px;font-size:14px;font-weight:700;color:${BRAND.blue};">1.</td>
+              <td style="padding:0 0 10px;font-size:14px;line-height:1.55;color:${BRAND.slate};">Open the sign-in page using the button below.</td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 10px;vertical-align:top;width:28px;font-size:14px;font-weight:700;color:${BRAND.blue};">2.</td>
+              <td style="padding:0 0 10px;font-size:14px;line-height:1.55;color:${BRAND.slate};">Sign in with <strong>${safeEmail}</strong> and the password above.</td>
+            </tr>
+            <tr>
+              <td style="padding:0;vertical-align:top;width:28px;font-size:14px;font-weight:700;color:${BRAND.blue};">3.</td>
+              <td style="padding:0;font-size:14px;line-height:1.55;color:${BRAND.slate};">Keep your credentials secure and contact your administrator if you need help.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 28px;">
+      <tr>
+        <td align="center" style="border-radius:12px;background:linear-gradient(135deg,${BRAND.navy} 0%,${BRAND.navyMid} 100%);">
+          <a class="cta-button" href="${escapeHtml(loginUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:${BRAND.white};text-decoration:none;border-radius:12px;">
+            Sign in to your account
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:${BRAND.slateLight};text-align:center;">
+      Or copy this link into your browser:<br />
+      <a href="${escapeHtml(loginUrl)}" style="color:${BRAND.blue};word-break:break-all;">${escapeHtml(loginUrl)}</a>
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:28px;">
+      <tr>
+        <td style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 18px;">
+          <p style="margin:0;font-size:13px;line-height:1.6;color:#1e3a8a;">
+            <strong>Your role:</strong> ${safeRole}. If any account details look incorrect, please contact your administrator.
+          </p>
+        </td>
+      </tr>
+    </table>`;
+
+  const html = renderEmailLayout({
+    preheader: `Your ${brandName || "Quiz Platform"} account is ready. Sign in with ${email}.`,
+    brandName,
+    title: "Welcome to the platform",
+    bodyHtml,
+    footerNote: "You received this email because an administrator created an account for you.",
+    logoCid,
+    logoUrl
+  });
+
+  const assignmentText = [
+    clientName ? `Client: ${clientName}` : null,
+    deptName ? `Department: ${deptName}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const text = `${greeting}
+
+Admin has created an account for you on "Quiz Platform".
+
+ACCOUNT DETAILS
+Email: ${email}
+Role: ${roleLabel || "User"}
+${assignmentText}
+
+PASSWORD
+${password}
+
+GETTING STARTED
+1. Open the sign-in page: ${loginUrl}
+2. Sign in with your email and the password above.
+3. Keep your credentials secure and contact your administrator if you need help.
+
+— ${brandName || "Quiz Platform"}`;
+
+  return {
+    subject: `Your ${brandName || "Quiz Platform"} account has been created`,
+    text,
+    html
+  };
+}
+
 module.exports = {
   escapeHtml,
   renderEmailLayout,
   renderPasswordResetEmail,
+  renderNewUserWelcomeEmail,
   buildLoginUrl,
   buildEmailLogoUrl,
   EMAIL_LOGO_CID

@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const { MailConfig } = require("../models");
-const { renderPasswordResetEmail, EMAIL_LOGO_CID } = require("./email-templates");
+const { renderPasswordResetEmail, renderNewUserWelcomeEmail, EMAIL_LOGO_CID } = require("./email-templates");
 
 const EMAIL_LOGO_PATH = path.join(__dirname, "../../assets/email-logo.png");
 
@@ -44,7 +44,7 @@ function createTransport(config) {
   });
 }
 
-async function sendMailWithConfig(config, { to, subject, text, html, attachments = [] }) {
+async function sendMailWithConfig(config, { to, cc, subject, text, html, attachments = [] }) {
   if (!config) {
     const error = new Error("No active mail configuration found");
     error.statusCode = 503;
@@ -60,10 +60,12 @@ async function sendMailWithConfig(config, { to, subject, text, html, attachments
   const transport = createTransport(config);
   const fromName = config.sender_name || "Quiz Platform";
   const fromAddress = config.smtp_from || config.smtp_user;
+  const ccList = Array.isArray(cc) ? cc.filter(Boolean) : cc ? [cc] : [];
 
   await transport.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     to,
+    cc: ccList.length ? ccList.join(", ") : undefined,
     subject,
     text,
     html,
@@ -100,8 +102,45 @@ async function sendPasswordResetEmail({ to, fullName, temporaryPassword }) {
   });
 }
 
+async function sendNewUserWelcomeEmail({
+  to,
+  cc,
+  fullName,
+  email,
+  password,
+  roleLabel,
+  clientName,
+  deptName,
+  createdByName
+}) {
+  const config = await getActiveMailConfig();
+  const brandName = config?.sender_name || "Quiz Platform";
+  const logoAttachment = getEmailLogoAttachment();
+  const { subject, text, html } = renderNewUserWelcomeEmail({
+    fullName,
+    email,
+    password,
+    roleLabel,
+    clientName,
+    deptName,
+    createdByName,
+    brandName,
+    logoCid: logoAttachment ? EMAIL_LOGO_CID : null
+  });
+
+  await sendMailWithConfig(config, {
+    to,
+    cc,
+    subject,
+    text,
+    html,
+    attachments: logoAttachment ? [logoAttachment] : []
+  });
+}
+
 module.exports = {
   getActiveMailConfig,
   sendMail,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendNewUserWelcomeEmail
 };
