@@ -70,7 +70,7 @@ const Session = sequelize.define(
     leaderboard_enabled: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
-      defaultValue: true
+      defaultValue: false
     },
     show_question_leaderboard: {
       type: DataTypes.BOOLEAN,

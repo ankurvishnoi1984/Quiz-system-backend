@@ -190,7 +190,7 @@ async function createSession({ deptId, input, user }) {
      max_participants: input.max_participants || 500,
      show_results_to_participants: input.show_results_to_participants ?? true,
      allow_late_join: false,
-     leaderboard_enabled: input.leaderboard_enabled ?? true,
+     leaderboard_enabled: input.leaderboard_enabled ?? false,
      show_question_leaderboard: input.show_question_leaderboard ?? false,
      participant_navigation_enabled:
        input.participant_navigation_enabled !== undefined
@@ -255,7 +255,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         max_participants: source.max_participants ?? 500,
         show_results_to_participants: source.show_results_to_participants ?? true,
         allow_late_join: source.allow_late_join ?? false,
-        leaderboard_enabled: source.leaderboard_enabled ?? true,
+        leaderboard_enabled: source.leaderboard_enabled ?? false,
         show_question_leaderboard: source.show_question_leaderboard ?? false,
         participant_navigation_enabled: source.participant_navigation_enabled ?? true,
         quiz_total_time_minutes: source.quiz_total_time_minutes ?? null,

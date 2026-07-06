@@ -21,6 +21,7 @@ const {
 const {
   notifySessionUpdate,
   notifySessionSettings,
+  notifyLeaderboard,
   notifyQuestionChange,
   notifyAllQuestionsSubmissionsClosed
 } = require("../services/websocket.service");
@@ -109,6 +110,10 @@ async function update(req, res) {
         quiz_total_time_minutes: session.quiz_total_time_minutes ?? null,
         allow_late_join: Boolean(session.allow_late_join)
       });
+      if (req.body.leaderboard_enabled === true && session.leaderboard_enabled) {
+        const leaderboard = await buildSessionLeaderboard(session.session_id);
+        notifyLeaderboard(session.session_code, { leaderboard });
+      }
     }
     return successResponse(res, { session }, "Session updated", 200);
   } catch (err) {
