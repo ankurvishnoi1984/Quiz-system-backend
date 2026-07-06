@@ -4,7 +4,8 @@ const { getSessionOrThrow, assertSessionWriteAccess } = require("./session.servi
 const { listSessionQuestions } = require("./question.service");
 const {
   getQuestionResults,
-  getSessionResponses
+  getSessionResponses,
+  buildSessionLeaderboard
 } = require("./response.service");
 const { Participant, Question } = require("../models");
 const { listQaQuestionsForPresenterViewer } = require("./qa.service");
@@ -130,6 +131,11 @@ async function listPresentViewQaQuestions({ sessionId, viewer }) {
   return listQaQuestionsForPresenterViewer({ sessionId, viewer });
 }
 
+async function getPresentViewLeaderboard({ sessionId, viewer, limit = 10 }) {
+  assertPresenterViewerSession(viewer, sessionId);
+  return buildSessionLeaderboard(sessionId, limit);
+}
+
 module.exports = {
   createPresentViewLink,
   getPresentViewSession,
@@ -138,6 +144,7 @@ module.exports = {
   getPresentViewQuestionResults,
   listPresentViewParticipants,
   listPresentViewQaQuestions,
+  getPresentViewLeaderboard,
   setPresentSlideIndex,
   getPresentSlideIndexForViewer
 };

@@ -6,7 +6,8 @@ const {
   getPresentViewQuestionResults,
   listPresentViewParticipants,
   listPresentViewQaQuestions,
-  getPresentSlideIndexForViewer
+  getPresentSlideIndexForViewer,
+  getPresentViewLeaderboard
 } = require("../services/present-view.service");
 
 async function sessionDetail(req, res) {
@@ -107,6 +108,21 @@ async function presentSlide(req, res) {
   }
 }
 
+async function sessionLeaderboard(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    const limit = Number(req.query.limit);
+    const leaderboard = await getPresentViewLeaderboard({
+      sessionId,
+      viewer: req.presenterViewer,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : 10
+    });
+    return successResponse(res, { leaderboard }, "Leaderboard fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   sessionDetail,
   listQuestions,
@@ -114,5 +130,6 @@ module.exports = {
   questionResults,
   listParticipants,
   listQaQuestions,
-  presentSlide
+  presentSlide,
+  sessionLeaderboard
 };

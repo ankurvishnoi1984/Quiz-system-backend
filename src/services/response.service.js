@@ -129,17 +129,25 @@ function buildRankingAnalytics(question, responses) {
 async function buildSessionLeaderboard(sessionId, limit = 10) {
   const rows = await Participant.findAll({
     where: { session_id: sessionId },
-    attributes: ["participant_id", "nickname", "email", "is_anonymous", "score"],
-    order: [["score", "DESC"]],
-    limit
+    attributes: ["participant_id", "nickname", "email", "is_anonymous", "score"]
   });
-  return rows.map((p) =>
-    toLeaderboardEntry(
-      p.participant_id,
-      participantDisplayName(p, p.participant_id),
-      p.score || 0
-    )
-  );
+
+  return rows
+    .map((participant) => ({
+      participant_id: participant.participant_id,
+      displayName: participantDisplayName(participant, participant.participant_id),
+      score: Number(participant.score || 0)
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const nameCompare = a.displayName.localeCompare(b.displayName, undefined, {
+        sensitivity: "base"
+      });
+      if (nameCompare !== 0) return nameCompare;
+      return Number(a.participant_id) - Number(b.participant_id);
+    })
+    .slice(0, limit)
+    .map((row) => toLeaderboardEntry(row.participant_id, row.displayName, row.score));
 }
 
 async function buildQuestionLeaderboard(questionId, limit = 10) {
@@ -791,6 +799,12 @@ async function getParticipantSessionLeaderboard({ sessionId, participant }) {
   return buildSessionLeaderboard(sessionId);
 }
 
+async function getSessionLeaderboardForStaff({ sessionId, user, limit = 10 }) {
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+  return buildSessionLeaderboard(sessionId, limit);
+}
+
 module.exports = {
   submitResponse,
   getQuestionResults,
@@ -800,6 +814,7 @@ module.exports = {
   exportSessionResponsesCsv,
   listParticipantQuestionsService,
   getParticipantSessionLeaderboard,
+  getSessionLeaderboardForStaff,
   buildQuestionLeaderboard,
   buildSessionLeaderboard,
   buildRankingAnalytics,

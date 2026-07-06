@@ -7,6 +7,7 @@ const {
   exportSessionResponsesCsv,
   listParticipantQuestionsService,
   getParticipantSessionLeaderboard,
+  getSessionLeaderboardForStaff,
   getParticipantSurveyQuestionResults
 } = require("../services/response.service");
 const { validateSubmitResponsePayload } = require("../validators/response.validator");
@@ -134,6 +135,25 @@ async function participantSessionLeaderboard(req, res) {
   }
 }
 
+async function sessionLeaderboard(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+
+    const limit = Number(req.query.limit);
+    const leaderboard = await getSessionLeaderboardForStaff({
+      sessionId,
+      user: req.user,
+      limit: Number.isFinite(limit) && limit > 0 ? limit : 10
+    });
+    return successResponse(res, { leaderboard }, "Leaderboard fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function participantSurveyQuestionResults(req, res) {
   try {
     const questionId = Number(req.params.questionId);
@@ -159,5 +179,6 @@ module.exports = {
   sessionExport,
   listParticipantQuestions,
   participantSessionLeaderboard,
+  sessionLeaderboard,
   participantSurveyQuestionResults
 };

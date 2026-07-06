@@ -30,6 +30,11 @@ router.get(
   responseController.sessionResponses
 );
 router.get(
+  "/responses/session/:sessionId/leaderboard",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  responseController.sessionLeaderboard
+);
+router.get(
   "/responses/session/:sessionId/summary",
   authorizeRoles("super_admin", "client_admin", "dept_admin"),
   responseController.sessionSummary
