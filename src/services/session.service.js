@@ -170,7 +170,10 @@ async function createSession({ deptId, input, user }) {
     throw error;
   }
 
-  if (Number(host.dept_id) !== Number(deptId)) {
+  if (
+    user.role !== "super_admin" &&
+    Number(host.dept_id) !== Number(deptId)
+  ) {
     const error = new Error("Host must belong to the same department");
     error.statusCode = 400;
     throw error;
@@ -228,7 +231,10 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
       error.statusCode = 404;
       throw error;
     }
-    if (Number(host.dept_id) !== Number(source.dept_id)) {
+    if (
+      user.role !== "super_admin" &&
+      Number(host.dept_id) !== Number(source.dept_id)
+    ) {
       const error = new Error("Host must belong to the same department as the session");
       error.statusCode = 400;
       throw error;
