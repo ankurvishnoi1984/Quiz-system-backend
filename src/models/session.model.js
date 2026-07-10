@@ -33,6 +33,19 @@ const Session = sequelize.define(
       type: DataTypes.STRING(5),
       allowNull: true
     },
+    auto_end_enabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+    auto_end_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true
+    },
+    auto_end_time: {
+      type: DataTypes.STRING(5),
+      allowNull: true
+    },
     session_code: {
       type: DataTypes.CHAR(6),
       allowNull: false,

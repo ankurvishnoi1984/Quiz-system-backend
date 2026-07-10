@@ -184,6 +184,9 @@ async function createSession({ deptId, input, user }) {
      description: input.description || null,
      scheduled_date: input.scheduled_date || null,
      scheduled_time: input.scheduled_time || null,
+     auto_end_enabled: Boolean(input.auto_end_enabled),
+     auto_end_date: input.auto_end_enabled ? input.auto_end_date || null : null,
+     auto_end_time: input.auto_end_enabled ? input.auto_end_time || null : null,
      session_code: sessionCode,
      status: "draft",
      join_type: input.join_type ?? 'name',
@@ -249,6 +252,9 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         description: source.description,
         scheduled_date: source.scheduled_date || null,
         scheduled_time: source.scheduled_time || null,
+        auto_end_enabled: Boolean(source.auto_end_enabled),
+        auto_end_date: source.auto_end_enabled ? source.auto_end_date || null : null,
+        auto_end_time: source.auto_end_enabled ? source.auto_end_time || null : null,
         session_code: sessionCode,
         status: "draft",
         join_type: source.join_type || "name",
@@ -408,7 +414,23 @@ async function updateSession({ sessionId, input, user }) {
     scheduled_date:
       input.scheduled_date !== undefined ? input.scheduled_date || null : session.scheduled_date,
     scheduled_time:
-      input.scheduled_time !== undefined ? input.scheduled_time || null : session.scheduled_time
+      input.scheduled_time !== undefined ? input.scheduled_time || null : session.scheduled_time,
+    auto_end_enabled:
+      input.auto_end_enabled !== undefined
+        ? Boolean(input.auto_end_enabled)
+        : session.auto_end_enabled,
+    auto_end_date:
+      input.auto_end_enabled !== undefined
+        ? input.auto_end_enabled
+          ? input.auto_end_date || null
+          : null
+        : session.auto_end_date,
+    auto_end_time:
+      input.auto_end_enabled !== undefined
+        ? input.auto_end_enabled
+          ? input.auto_end_time || null
+          : null
+        : session.auto_end_time
   });
 
   await session.save();
@@ -419,6 +441,17 @@ async function archiveSession({ sessionId, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
   session.status = "archived";
+  await session.save();
+  return session;
+}
+
+async function endSessionBySystem(session, endedAt = new Date()) {
+  if (!session || !["live", "paused"].includes(session.status)) {
+    return null;
+  }
+
+  session.status = "completed";
+  session.ended_at = endedAt;
   await session.save();
   return session;
 }
@@ -637,6 +670,7 @@ module.exports = {
   getSessionById,
   updateSession,
   archiveSession,
+  endSessionBySystem,
   transitionSessionStatus,
   getSessionByCode,
   getSessionJoinBlockInfo,

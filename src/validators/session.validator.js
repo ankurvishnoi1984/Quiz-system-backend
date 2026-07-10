@@ -19,6 +19,46 @@ function validateScheduledTime(value) {
   return null;
 }
 
+function validateAutoEndFields(payload) {
+  const errors = [];
+  const enabled = Boolean(payload?.auto_end_enabled);
+  if (!enabled) return errors;
+
+  const dateError = validateScheduledDate(payload?.auto_end_date);
+  if (dateError) {
+    errors.push(dateError.replace("scheduled_date", "auto_end_date"));
+  } else if (!payload?.auto_end_date) {
+    errors.push("auto_end_date is required when automatic end is enabled");
+  }
+
+  const timeError = validateScheduledTime(payload?.auto_end_time);
+  if (timeError) {
+    errors.push(timeError.replace("scheduled_time", "auto_end_time"));
+  } else if (!payload?.auto_end_time) {
+    errors.push("auto_end_time is required when automatic end is enabled");
+  }
+
+  if (errors.length) return errors;
+
+  const { buildSessionDateTime, buildScheduledStartAt } = require("../utils/sessionDateTime");
+  const endAt = buildSessionDateTime(payload.auto_end_date, payload.auto_end_time);
+  if (!endAt || Number.isNaN(endAt.getTime())) {
+    errors.push("auto end date and time must be valid");
+    return errors;
+  }
+
+  if (endAt.getTime() <= Date.now()) {
+    errors.push("automatic end must be scheduled in the future");
+  }
+
+  const startAt = buildScheduledStartAt(payload);
+  if (startAt && !Number.isNaN(startAt.getTime()) && endAt.getTime() <= startAt.getTime()) {
+    errors.push("automatic end must be after the planned session start");
+  }
+
+  return errors;
+}
+
 const QUIZ_TOTAL_TIME_MINUTES = [15, 30, 45, 60];
 
 function validateQuizTotalTimeMinutes(payload) {
@@ -77,6 +117,8 @@ function validateCreateSessionPayload(payload) {
   const quizTotalTimeError = validateQuizTotalTimeMinutes(payload);
   if (quizTotalTimeError) errors.push(quizTotalTimeError);
 
+  errors.push(...validateAutoEndFields(payload));
+
   return errors;
 }
 
@@ -94,7 +136,10 @@ function validateUpdateSessionPayload(payload) {
     "quiz_total_time_minutes",
     "join_type",
     "scheduled_date",
-    "scheduled_time"
+    "scheduled_time",
+    "auto_end_enabled",
+    "auto_end_date",
+    "auto_end_time"
   ];
 
   if (!payload || typeof payload !== "object") {
@@ -134,6 +179,10 @@ function validateUpdateSessionPayload(payload) {
 
   const quizTotalTimeError = validateQuizTotalTimeMinutes(payload);
   if (quizTotalTimeError) errors.push(quizTotalTimeError);
+
+  if (payload?.auto_end_enabled !== undefined) {
+    errors.push(...validateAutoEndFields(payload));
+  }
 
   return errors;
 }
