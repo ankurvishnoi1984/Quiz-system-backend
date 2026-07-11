@@ -8,7 +8,9 @@ const {
   listParticipantQuestionsService,
   getParticipantSessionLeaderboard,
   getSessionLeaderboardForStaff,
-  getParticipantSurveyQuestionResults
+  getParticipantSurveyQuestionResults,
+  getParticipantSessionSurveySummary,
+  getSessionSurveySummaryForStaff
 } = require("../services/response.service");
 const { validateSubmitResponsePayload } = require("../validators/response.validator");
 const { broadcastResponse, notifySessionProgress } = require("../services/websocket.service");
@@ -171,6 +173,40 @@ async function participantSurveyQuestionResults(req, res) {
   }
 }
 
+async function participantSessionSurveySummary(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+
+    const summary = await getParticipantSessionSurveySummary({
+      sessionId,
+      participant: req.participant
+    });
+    return successResponse(res, summary, "Survey summary fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function sessionSurveySummary(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+
+    const summary = await getSessionSurveySummaryForStaff({
+      sessionId,
+      user: req.user
+    });
+    return successResponse(res, summary, "Survey summary fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   submit,
   questionResults,
@@ -180,5 +216,7 @@ module.exports = {
   listParticipantQuestions,
   participantSessionLeaderboard,
   sessionLeaderboard,
-  participantSurveyQuestionResults
+  participantSurveyQuestionResults,
+  participantSessionSurveySummary,
+  sessionSurveySummary
 };

@@ -406,6 +406,7 @@ function notifySessionSettings(sessionCode, settings) {
   broadcastToSession(sessionCode, {
     type: "session_settings_updated",
     leaderboard_enabled: Boolean(settings.leaderboard_enabled),
+    survey_results_enabled: Boolean(settings.survey_results_enabled),
     show_question_leaderboard: Boolean(settings.show_question_leaderboard),
     participant_navigation_enabled: settings.participant_navigation_enabled !== false,
     allow_late_join: Boolean(settings.allow_late_join)

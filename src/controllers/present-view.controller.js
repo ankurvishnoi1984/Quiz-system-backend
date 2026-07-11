@@ -7,7 +7,8 @@ const {
   listPresentViewParticipants,
   listPresentViewQaQuestions,
   getPresentSlideIndexForViewer,
-  getPresentViewLeaderboard
+  getPresentViewLeaderboard,
+  getPresentViewSurveySummary
 } = require("../services/present-view.service");
 
 async function sessionDetail(req, res) {
@@ -123,6 +124,19 @@ async function sessionLeaderboard(req, res) {
   }
 }
 
+async function sessionSurveySummary(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    const summary = await getPresentViewSurveySummary({
+      sessionId,
+      viewer: req.presenterViewer
+    });
+    return successResponse(res, summary, "Survey summary fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 module.exports = {
   sessionDetail,
   listQuestions,
@@ -131,5 +145,6 @@ module.exports = {
   listParticipants,
   listQaQuestions,
   presentSlide,
-  sessionLeaderboard
+  sessionLeaderboard,
+  sessionSurveySummary
 };

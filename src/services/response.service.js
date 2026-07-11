@@ -617,6 +617,112 @@ async function loadQuestionWithResponses(questionId) {
   return { question, responses };
 }
 
+function formatQuestionForSurveySummary(question) {
+  const plain = question.toJSON ? question.toJSON() : question;
+  const options = plain.QuestionOptions || plain.question_options || [];
+  return {
+    question_id: plain.question_id,
+    question_text: plain.question_text,
+    question_type: plain.question_type,
+    survey_subtype: plain.survey_subtype || null,
+    display_order: plain.display_order ?? null,
+    question_options: options.map((option) => ({
+      option_id: option.option_id,
+      option_text: option.option_text,
+      display_order: option.display_order
+    }))
+  };
+}
+
+async function buildSessionSurveySummaryRows(sessionId) {
+  const questions = await Question.findAll({
+    where: { session_id: sessionId },
+    include: [{ model: QuestionOption }],
+    order: [
+      ["display_order", "ASC"],
+      ["question_id", "ASC"]
+    ]
+  });
+
+  const rows = [];
+  for (const question of questions) {
+    if (!questionAllowsParticipantAggregateResults(question)) continue;
+    const responses = await Response.findAll({
+      where: { question_id: question.question_id },
+      include: [{ model: QuestionOption, attributes: ["option_id", "option_text", "display_order"] }],
+      order: [["submitted_at", "ASC"]]
+    });
+    rows.push({
+      question: formatQuestionForSurveySummary(question),
+      results: buildQuestionResultsPayload(question, responses)
+    });
+  }
+
+  return rows;
+}
+
+async function getSessionSurveySummaryPayload(sessionId) {
+  const questions = await buildSessionSurveySummaryRows(sessionId);
+  const totalResponses = questions.reduce(
+    (sum, row) => sum + Number(row.results?.total_responses || 0),
+    0
+  );
+
+  return {
+    total_questions: questions.length,
+    total_responses: totalResponses,
+    questions
+  };
+}
+
+async function getParticipantSessionSurveySummary({ sessionId, participant }) {
+  const session = await Session.findByPk(sessionId);
+  if (!session) {
+    const error = new Error("Session not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (Number(participant.session_id) !== Number(sessionId)) {
+    const error = new Error("Not allowed for this session");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const sessionEnded = session.status === "completed" || session.status === "archived";
+  if (!sessionEnded && !session.survey_results_enabled) {
+    const error = new Error("Survey results are not available yet");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const summary = await getSessionSurveySummaryPayload(sessionId);
+  return {
+    session: {
+      session_id: session.session_id,
+      title: session.title,
+      status: session.status,
+      survey_results_enabled: Boolean(session.survey_results_enabled)
+    },
+    ...summary
+  };
+}
+
+async function getSessionSurveySummaryForStaff({ sessionId, user }) {
+  const session = await getSessionForAccess(sessionId);
+  assertStaffAccess(user, session);
+  const summary = await getSessionSurveySummaryPayload(sessionId);
+  return {
+    session: {
+      session_id: session.session_id,
+      title: session.title,
+      status: session.status,
+      survey_results_enabled: Boolean(session.survey_results_enabled)
+    },
+    ...summary
+  };
+}
+
 async function getQuestionResults({ questionId, user }) {
   const question = await Question.findByPk(questionId, {
     include: [{ model: Session }, { model: QuestionOption }]
@@ -862,6 +968,8 @@ module.exports = {
   submitResponse,
   getQuestionResults,
   getParticipantSurveyQuestionResults,
+  getParticipantSessionSurveySummary,
+  getSessionSurveySummaryForStaff,
   getSessionResponses,
   getSessionSummary,
   exportSessionResponsesCsv,

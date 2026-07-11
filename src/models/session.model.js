@@ -85,6 +85,11 @@ const Session = sequelize.define(
       allowNull: true,
       defaultValue: false
     },
+    survey_results_enabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     show_question_leaderboard: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

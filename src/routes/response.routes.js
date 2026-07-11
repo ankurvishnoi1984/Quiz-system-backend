@@ -10,6 +10,11 @@ const router = express.Router();
 router.get("/sessions/:sessionId/participantQuestions",participantAuthMiddleware, responseController.listParticipantQuestions);
 router.get("/sessions/:sessionId/leaderboard", participantAuthMiddleware, responseController.participantSessionLeaderboard);
 router.get(
+  "/sessions/:sessionId/survey-summary",
+  participantAuthMiddleware,
+  responseController.participantSessionSurveySummary
+);
+router.get(
   "/questions/:questionId/survey-results",
   participantAuthMiddleware,
   responseController.participantSurveyQuestionResults
@@ -33,6 +38,11 @@ router.get(
   "/responses/session/:sessionId/leaderboard",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   responseController.sessionLeaderboard
+);
+router.get(
+  "/responses/session/:sessionId/survey-summary",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  responseController.sessionSurveySummary
 );
 router.get(
   "/responses/session/:sessionId/summary",

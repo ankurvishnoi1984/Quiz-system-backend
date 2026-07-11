@@ -197,6 +197,7 @@ async function createSession({ deptId, input, user }) {
      show_results_to_participants: input.show_results_to_participants ?? true,
      allow_late_join: false,
      leaderboard_enabled: input.leaderboard_enabled ?? false,
+     survey_results_enabled: input.survey_results_enabled ?? false,
      show_question_leaderboard: input.show_question_leaderboard ?? false,
      participant_navigation_enabled:
        input.participant_navigation_enabled !== undefined
@@ -268,6 +269,7 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         show_results_to_participants: source.show_results_to_participants ?? true,
         allow_late_join: source.allow_late_join ?? false,
         leaderboard_enabled: source.leaderboard_enabled ?? false,
+        survey_results_enabled: source.survey_results_enabled ?? false,
         show_question_leaderboard: source.show_question_leaderboard ?? false,
         participant_navigation_enabled: source.participant_navigation_enabled ?? true,
         quiz_total_time_minutes: source.quiz_total_time_minutes ?? null,
@@ -358,7 +360,7 @@ async function updateSession({ sessionId, input, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
 
-  const liveSettingsOnly = ["leaderboard_enabled", "title"];
+  const liveSettingsOnly = ["leaderboard_enabled", "survey_results_enabled", "title"];
   const inputKeys = Object.keys(input || {});
 
   if (session.status !== "draft") {
@@ -406,6 +408,10 @@ async function updateSession({ sessionId, input, user }) {
       input.leaderboard_enabled !== undefined
         ? Boolean(input.leaderboard_enabled)
         : session.leaderboard_enabled,
+    survey_results_enabled:
+      input.survey_results_enabled !== undefined
+        ? Boolean(input.survey_results_enabled)
+        : session.survey_results_enabled,
     show_question_leaderboard:
       input.show_question_leaderboard !== undefined
         ? Boolean(input.show_question_leaderboard)
