@@ -23,13 +23,20 @@ function participantDisplayName(participant, participantId) {
   return `Participant ${participantId}`;
 }
 
-function toLeaderboardEntry(participantId, displayName, score) {
-  return {
+function toLeaderboardEntry(participantId, displayName, score, timing = {}) {
+  const entry = {
     participant_id: participantId,
     nickname: displayName,
     name: displayName,
     score
   };
+  if (timing.responseTimeMs != null) {
+    entry.response_time_ms = timing.responseTimeMs;
+  }
+  if (timing.avgResponseTimeMs != null) {
+    entry.avg_response_time_ms = timing.avgResponseTimeMs;
+  }
+  return entry;
 }
 
 function buildRankingAnalytics(question, responses) {
@@ -132,12 +139,37 @@ async function buildSessionLeaderboard(sessionId, limit = 10) {
     attributes: ["participant_id", "nickname", "email", "is_anonymous", "score"]
   });
 
+  const responseRows = await Response.findAll({
+    where: { session_id: sessionId },
+    attributes: ["participant_id", "response_time_ms"]
+  });
+
+  const responseTimesByParticipant = new Map();
+  responseRows.forEach((row) => {
+    const responseTimeMs =
+      row.response_time_ms != null ? Number(row.response_time_ms) : null;
+    if (responseTimeMs == null || !Number.isFinite(responseTimeMs) || responseTimeMs < 0) {
+      return;
+    }
+    if (!responseTimesByParticipant.has(row.participant_id)) {
+      responseTimesByParticipant.set(row.participant_id, []);
+    }
+    responseTimesByParticipant.get(row.participant_id).push(responseTimeMs);
+  });
+
   return rows
-    .map((participant) => ({
-      participant_id: participant.participant_id,
-      displayName: participantDisplayName(participant, participant.participant_id),
-      score: Number(participant.score || 0)
-    }))
+    .map((participant) => {
+      const times = responseTimesByParticipant.get(participant.participant_id) || [];
+      const avgResponseTimeMs = times.length
+        ? Math.round(times.reduce((sum, value) => sum + value, 0) / times.length)
+        : null;
+      return {
+        participant_id: participant.participant_id,
+        displayName: participantDisplayName(participant, participant.participant_id),
+        score: Number(participant.score || 0),
+        avgResponseTimeMs
+      };
+    })
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       const nameCompare = a.displayName.localeCompare(b.displayName, undefined, {
@@ -147,7 +179,11 @@ async function buildSessionLeaderboard(sessionId, limit = 10) {
       return Number(a.participant_id) - Number(b.participant_id);
     })
     .slice(0, limit)
-    .map((row) => toLeaderboardEntry(row.participant_id, row.displayName, row.score));
+    .map((row) =>
+      toLeaderboardEntry(row.participant_id, row.displayName, row.score, {
+        avgResponseTimeMs: row.avgResponseTimeMs
+      })
+    );
 }
 
 async function buildQuestionLeaderboard(questionId, limit = 10) {
@@ -167,12 +203,29 @@ async function buildQuestionLeaderboard(questionId, limit = 10) {
     const pid = row.participant_id;
     const points = Number(row.points_earned || 0);
     const displayName = participantDisplayName(row, pid);
+    const responseTimeMs =
+      row.response_time_ms != null ? Number(row.response_time_ms) : null;
     const existing = byParticipant.get(pid);
-    if (!existing || points > existing.score) {
-      byParticipant.set(pid, toLeaderboardEntry(pid, displayName, points));
+    if (
+      !existing ||
+      points > existing.score ||
+      (points === existing.score &&
+        responseTimeMs != null &&
+        (existing.responseTimeMs == null || responseTimeMs < existing.responseTimeMs))
+    ) {
+      byParticipant.set(pid, {
+        displayName,
+        score: points,
+        responseTimeMs
+      });
     }
   });
-  return Array.from(byParticipant.values())
+  return Array.from(byParticipant.entries())
+    .map(([pid, value]) =>
+      toLeaderboardEntry(pid, value.displayName, value.score, {
+        responseTimeMs: value.responseTimeMs
+      })
+    )
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
