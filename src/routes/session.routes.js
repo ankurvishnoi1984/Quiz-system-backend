@@ -108,6 +108,11 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.presentViewLink
 );
+router.get(
+  "/sessions/:sessionId/present-slide",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.getPresentSlide
+);
 router.put(
   "/sessions/:sessionId/present-slide",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

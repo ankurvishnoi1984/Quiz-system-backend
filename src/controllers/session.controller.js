@@ -33,7 +33,7 @@ const {
 const { getSessionSummaryReport, getSessionQuestionsReport, getSessionParticipantsReport, getSessionQaReport } = require("../services/session-report.service");
 const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
-const { createPresentViewLink, setPresentSlideIndex } = require("../services/present-view.service");
+const { createPresentViewLink, setPresentSlideIndex, getPresentSlideIndexForHost } = require("../services/present-view.service");
 
 async function listByDepartment(req, res) {
   try {
@@ -267,6 +267,18 @@ async function presentViewLink(req, res) {
   }
 }
 
+async function getPresentSlide(req, res) {
+  try {
+    const data = await getPresentSlideIndexForHost({
+      sessionId: Number(req.params.sessionId),
+      user: req.user
+    });
+    return successResponse(res, data, "Present slide fetched", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function presentSlide(req, res) {
   try {
     const slideIndex = Number(req.body?.slide_index)
@@ -444,6 +456,7 @@ module.exports = {
   joinByCode,
   qr,
   presentViewLink,
+  getPresentSlide,
   presentSlide,
   closeAllQuestions,
   activateAllQuestions

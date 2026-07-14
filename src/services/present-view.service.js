@@ -51,6 +51,12 @@ function getPresentSlideIndexForViewer({ sessionId, viewer }) {
   return getPresentSlideState(sessionId);
 }
 
+async function getPresentSlideIndexForHost({ sessionId, user }) {
+  const session = await getSessionOrThrow(sessionId);
+  assertSessionWriteAccess(user, session);
+  return getPresentSlideState(sessionId);
+}
+
 async function createPresentViewLink({ sessionId, user, baseUrl }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
@@ -163,5 +169,6 @@ module.exports = {
   getPresentViewLeaderboard,
   getPresentViewSurveySummary,
   setPresentSlideIndex,
-  getPresentSlideIndexForViewer
+  getPresentSlideIndexForViewer,
+  getPresentSlideIndexForHost
 };
