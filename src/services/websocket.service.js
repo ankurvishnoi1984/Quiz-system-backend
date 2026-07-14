@@ -288,6 +288,16 @@ async function getSessionProgress(sessionId) {
     };
   }
 
+  // Lobby / join-wave: no answers yet — skip loading every response row
+  const responseCount = await ResponseModel.count({ where: { session_id: sessionId } });
+  if (responseCount === 0) {
+    return {
+      participants_count: participantsCount,
+      completed_participants: 0,
+      completion_progress: 0
+    };
+  }
+
   const responses = await ResponseModel.findAll({
     where: { session_id: sessionId },
     attributes: ["participant_id", "question_id"]
@@ -424,12 +434,55 @@ function notifyParticipantJoined(sessionCode, participant) {
   });
 }
 
-async function notifySessionProgress(sessionCode, sessionId) {
-  const progress = await getSessionProgress(sessionId);
-  broadcastToSession(sessionCode, {
-    type: "session_progress",
-    ...progress
-  });
+/** Coalesce join/submit progress fan-out: at most ~1 broadcast per session / debounce window. */
+const SESSION_PROGRESS_DEBOUNCE_MS = Number(process.env.SESSION_PROGRESS_DEBOUNCE_MS || 2000);
+const sessionProgressNotifyState = new Map();
+
+function notifySessionProgress(sessionCode, sessionId) {
+  if (!sessionCode || sessionId == null) return Promise.resolve();
+
+  const key = `${sessionCode}:${Number(sessionId)}`;
+  let state = sessionProgressNotifyState.get(key);
+  if (!state) {
+    state = { timer: null, pending: false, lastSentAt: 0, inFlight: false };
+    sessionProgressNotifyState.set(key, state);
+  }
+  state.pending = true;
+
+  const flush = async () => {
+    if (!state.pending || state.inFlight) return;
+    state.pending = false;
+    state.inFlight = true;
+    try {
+      const progress = await getSessionProgress(sessionId);
+      state.lastSentAt = Date.now();
+      broadcastToSession(sessionCode, {
+        type: "session_progress",
+        ...progress
+      });
+    } catch (err) {
+      wsLog("warn", "session_progress_failed", {
+        session: sessionCode,
+        session_id: sessionId,
+        error: err.message
+      });
+    } finally {
+      state.inFlight = false;
+      if (state.pending) schedule();
+    }
+  };
+
+  const schedule = () => {
+    if (state.timer || state.inFlight) return;
+    const wait = Math.max(0, SESSION_PROGRESS_DEBOUNCE_MS - (Date.now() - state.lastSentAt));
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      flush().catch(() => {});
+    }, wait);
+  };
+
+  schedule();
+  return Promise.resolve();
 }
 
 function notifyPresentSlideChanged(sessionCode, payload) {

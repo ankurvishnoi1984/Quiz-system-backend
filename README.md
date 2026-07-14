@@ -295,6 +295,12 @@ DB_NAME=quiz_db
 DB_USER=root
 DB_PASSWORD=
 
+# Sequelize connection pool (defaults shown)
+DB_POOL_MAX=30
+DB_POOL_MIN=5
+DB_POOL_ACQUIRE=30000
+DB_POOL_IDLE=10000
+
 JWT_SECRET=
 JWT_REFRESH_SECRET=
 ```
