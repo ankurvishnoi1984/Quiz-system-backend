@@ -94,7 +94,8 @@ const Question = sequelize.define(
         "open_text",
         "true_false",
         "ranking",
-        "fill_blank"
+        "fill_blank",
+        "emoji_reaction"
       ),
       allowNull: true
     },

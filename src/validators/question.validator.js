@@ -34,7 +34,16 @@ function validateCreateQuestionPayload(payload) {
   }
 
   if (payload?.question_type === "survey") {
-    const allowed = ["mcq", "poll", "rating", "open_text", "word_cloud", "ranking"];
+    const allowed = [
+      "mcq",
+      "poll",
+      "rating",
+      "open_text",
+      "word_cloud",
+      "ranking",
+      "true_false",
+      "emoji_reaction"
+    ];
     if (!payload?.survey_subtype || !allowed.includes(payload.survey_subtype)) {
       errors.push("survey must include a valid survey_subtype");
     }
@@ -48,6 +57,19 @@ function validateCreateQuestionPayload(payload) {
         errors.push("survey ranking options must include at least 2 entries");
       } else if (payload.options.length > 10) {
         errors.push("survey ranking options cannot exceed 10 entries");
+      }
+    }
+    if (payload.survey_subtype === "true_false") {
+      if (!Array.isArray(payload.options) || payload.options.length !== 2) {
+        errors.push("survey true_false must include exactly 2 options (True and False)");
+      }
+    }
+    if (payload.survey_subtype === "emoji_reaction") {
+      if (!Array.isArray(payload.options) || payload.options.length !== 5) {
+        errors.push("survey emoji_reaction must include exactly 5 emoji options");
+      }
+      if (payload?.allow_multiple_select) {
+        errors.push("survey emoji_reaction does not support multiple selection");
       }
     }
   }
