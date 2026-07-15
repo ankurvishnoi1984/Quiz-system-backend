@@ -675,8 +675,25 @@ async function getSessionSurveySummaryPayload(sessionId) {
   };
 }
 
+function coerceSessionFlag(value) {
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0" || value == null) return false;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return value.length > 0 && value[0] !== 0;
+  }
+  return Boolean(value);
+}
+
 async function getParticipantSessionSurveySummary({ sessionId, participant }) {
-  const session = await Session.findByPk(sessionId);
+  const session = await Session.findByPk(sessionId, {
+    attributes: [
+      "session_id",
+      "title",
+      "status",
+      "survey_results_enabled",
+      "leaderboard_enabled"
+    ]
+  });
   if (!session) {
     const error = new Error("Session not found");
     error.statusCode = 404;
@@ -690,7 +707,9 @@ async function getParticipantSessionSurveySummary({ sessionId, participant }) {
   }
 
   const sessionEnded = session.status === "completed" || session.status === "archived";
-  if (!sessionEnded && !session.survey_results_enabled) {
+  const surveyResultsEnabled = coerceSessionFlag(session.survey_results_enabled);
+
+  if (!sessionEnded && !surveyResultsEnabled) {
     const error = new Error("Survey results are not available yet");
     error.statusCode = 403;
     throw error;
@@ -702,7 +721,7 @@ async function getParticipantSessionSurveySummary({ sessionId, participant }) {
       session_id: session.session_id,
       title: session.title,
       status: session.status,
-      survey_results_enabled: Boolean(session.survey_results_enabled)
+      survey_results_enabled: surveyResultsEnabled
     },
     ...summary
   };
@@ -952,7 +971,8 @@ async function getParticipantSessionLeaderboard({ sessionId, participant }) {
     error.statusCode = 403;
     throw error;
   }
-  if (!session.leaderboard_enabled) {
+  const leaderboardEnabled = coerceSessionFlag(session.leaderboard_enabled);
+  if (!leaderboardEnabled) {
     return [];
   }
   return buildSessionLeaderboard(sessionId);

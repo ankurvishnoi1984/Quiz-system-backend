@@ -415,8 +415,19 @@ function notifyRankingResponseSubmitted(sessionCode, payload) {
 function notifySessionSettings(sessionCode, settings) {
   broadcastToSession(sessionCode, {
     type: "session_settings_updated",
-    leaderboard_enabled: Boolean(settings.leaderboard_enabled),
-    survey_results_enabled: Boolean(settings.survey_results_enabled),
+    leaderboard_enabled: Boolean(
+      settings.leaderboard_enabled === true ||
+        settings.leaderboard_enabled === 1 ||
+        settings.leaderboard_enabled === "1"
+    ),
+    survey_results_enabled: Boolean(
+      settings.survey_results_enabled === true ||
+        settings.survey_results_enabled === 1 ||
+        settings.survey_results_enabled === "1" ||
+        (typeof Buffer !== "undefined" &&
+          Buffer.isBuffer(settings.survey_results_enabled) &&
+          settings.survey_results_enabled[0])
+    ),
     show_question_leaderboard: Boolean(settings.show_question_leaderboard),
     participant_navigation_enabled: settings.participant_navigation_enabled !== false,
     allow_late_join: Boolean(settings.allow_late_join)
