@@ -1,17 +1,51 @@
 function validateCreateQuestionPayload(payload) {
   const errors = [];
+  const allowedTypes = [
+    "mcq",
+    "poll",
+    "survey",
+    "word_cloud",
+    "rating",
+    "open_text",
+    "true_false",
+    "ranking",
+    "emoji_reaction"
+  ];
 
   if (!payload?.question_type || typeof payload.question_type !== "string") {
     errors.push("question_type is required");
+  } else if (!allowedTypes.includes(payload.question_type)) {
+    errors.push("question_type is not supported");
   }
 
-  if (!payload?.question_text || typeof payload.question_text !== "string") {
+  if (
+    !payload?.question_text ||
+    typeof payload.question_text !== "string" ||
+    !payload.question_text.trim()
+  ) {
     errors.push("question_text is required");
+  }
+
+  if (Array.isArray(payload?.options)) {
+    payload.options.forEach((option, index) => {
+      if (
+        !option ||
+        typeof option.option_text !== "string" ||
+        !option.option_text.trim()
+      ) {
+        errors.push(`option ${index + 1} must include option_text`);
+      }
+    });
   }
 
   if (payload?.question_type === "mcq") {
     if (!Array.isArray(payload.options) || payload.options.length < 2) {
       errors.push("mcq options must include at least 2 entries");
+    } else if (payload.is_quiz_mode) {
+      const correctCount = payload.options.filter((option) => Boolean(option?.is_correct)).length;
+      if (correctCount !== 1) {
+        errors.push("mcq quiz questions must have exactly one correct option");
+      }
     }
   }
 
@@ -93,7 +127,15 @@ function validateCreateQuestionPayload(payload) {
     }
   }
 
-  return errors;
+  if (payload?.question_type === "rating") {
+    const min = Number(payload.rating_min ?? 1);
+    const max = Number(payload.rating_max ?? 10);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+      errors.push("rating_min must be less than rating_max");
+    }
+  }
+
+  return [...new Set(errors)];
 }
 
 function validateUpdateQuestionPayload(payload) {
