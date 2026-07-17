@@ -14,6 +14,16 @@ router.get(
   questionController.listBySession
 );
 router.post(
+  "/sessions/:sessionId/questions/import/preview",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.previewImport
+);
+router.post(
+  "/sessions/:sessionId/questions/import",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionController.confirmImport
+);
+router.post(
   "/sessions/:sessionId/questions",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   questionController.createForSession

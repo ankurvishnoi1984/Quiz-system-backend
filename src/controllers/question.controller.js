@@ -11,7 +11,9 @@ const {
   setQuestionLeaderboardVisibility,
   closeQuestionSubmissions,
   openQuestionForReattempt,
-  getCorrectOptionIds
+  getCorrectOptionIds,
+  validateQuestionImport,
+  importQuestions
 } = require("../services/question.service");
 const {
   validateCreateQuestionPayload,
@@ -85,6 +87,70 @@ async function createForSession(req, res) {
     return successResponse(res, { question }, "Question created", 201);
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function previewImport(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+    const mode = req.body?.mode || "append";
+    const parsedRows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    if (!parsedRows.length) {
+      return errorResponse(res, "At least one parsed question row is required", 400);
+    }
+    const validation = await validateQuestionImport({
+      sessionId,
+      mode,
+      questions: parsedRows.map((row) => ({ ...row.payload, __row: row.row })),
+      user: req.user
+    });
+    const validationByRow = new Map(validation.rows.map((row) => [Number(row.row), row]));
+    const rows = parsedRows.map((row) => {
+      const serviceValidation = validationByRow.get(Number(row.row));
+      const errors = [...new Set([...(row.errors || []), ...(serviceValidation?.errors || [])])];
+      return {
+        ...row,
+        errors,
+        valid: errors.length === 0
+      };
+    });
+
+    return successResponse(
+      res,
+      {
+        filename: req.body?.filename || null,
+        mode,
+        total_rows: rows.length,
+        valid_rows: rows.filter((row) => row.valid).length,
+        invalid_rows: rows.filter((row) => !row.valid).length,
+        rows
+      },
+      "Question import preview generated",
+      200
+    );
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500, err.details || null);
+  }
+}
+
+async function confirmImport(req, res) {
+  try {
+    const sessionId = Number(req.params.sessionId);
+    if (Number.isNaN(sessionId)) {
+      return errorResponse(res, "sessionId must be a number", 400);
+    }
+    const result = await importQuestions({
+      sessionId,
+      mode: req.body?.mode || "append",
+      questions: req.body?.questions,
+      user: req.user
+    });
+    return successResponse(res, result, `${result.created_count} questions imported`, 201);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500, err.details || null);
   }
 }
 
@@ -354,6 +420,8 @@ module.exports = {
   listBySession,
   listBySessionPublic,
   createForSession,
+  previewImport,
+  confirmImport,
   detail,
   update,
   remove,

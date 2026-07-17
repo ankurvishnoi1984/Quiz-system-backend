@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const { sequelize } = require("../config/database");
 const {
   Question,
   QuestionOption,
@@ -8,6 +9,7 @@ const {
   User
 } = require("../models");
 const { isSessionQuizTotalTimeEnabled } = require("../utils/sessionFlags");
+const { validateCreateQuestionPayload } = require("../validators/question.validator");
 
 function isParticipantNavigationEnabled(session) {
   return session.participant_navigation_enabled !== false;
@@ -160,6 +162,176 @@ async function createQuestion({ sessionId, input, user }) {
   return Question.findByPk(question.question_id, {
     include: [{ model: QuestionOption, order: [["display_order", "ASC"]] }]
   });
+}
+
+async function validateQuestionImport({ sessionId, questions, mode = "append", user }) {
+  const session = await getSessionForQuestionFlow(sessionId);
+  assertScopeAccess(user, session);
+
+  if (session.status !== "draft") {
+    const error = new Error("Questions can be imported only into draft sessions");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!["append", "replace"].includes(mode)) {
+    const error = new Error("Import mode must be append or replace");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Array.isArray(questions) || questions.length === 0) {
+    const error = new Error("At least one question is required");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (questions.length > 500) {
+    const error = new Error("A single import can contain at most 500 questions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const rowErrors = questions.map((question, index) => ({
+    row: question.__row || index + 2,
+    errors: validateCreateQuestionPayload(question)
+  }));
+
+  const importedTypes = new Set(questions.map((question) => question.question_type));
+  if (importedTypes.size !== 1) {
+    rowErrors.forEach((row) => {
+      row.errors.push(
+        "All imported questions must use one top-level question_type (Survey may mix survey_subtype)"
+      );
+    });
+  }
+
+  if (mode === "append") {
+    const existingTypes = await Question.findAll({
+      where: { session_id: sessionId },
+      attributes: ["question_type"],
+      group: ["question_type"],
+      raw: true
+    });
+    const importedType = questions[0]?.question_type;
+    if (
+      existingTypes.length > 0 &&
+      (existingTypes.length !== 1 || existingTypes[0].question_type !== importedType)
+    ) {
+      rowErrors.forEach((row) => {
+        row.errors.push(
+          `Append import must match the existing session type (${existingTypes
+            .map((entry) => entry.question_type)
+            .join(", ")})`
+        );
+      });
+    }
+  }
+
+  return {
+    session,
+    rows: rowErrors.map((row) => ({
+      ...row,
+      errors: [...new Set(row.errors)],
+      valid: row.errors.length === 0
+    })),
+    valid: rowErrors.every((row) => row.errors.length === 0)
+  };
+}
+
+async function importQuestions({ sessionId, questions, mode = "append", user }) {
+  const validation = await validateQuestionImport({ sessionId, questions, mode, user });
+  if (!validation.valid) {
+    const error = new Error("Import validation failed");
+    error.statusCode = 400;
+    error.details = validation.rows;
+    throw error;
+  }
+
+  const createdCount = await sequelize.transaction(async (transaction) => {
+    if (mode === "replace") {
+      const existing = await Question.findAll({
+        where: { session_id: sessionId },
+        attributes: ["question_id"],
+        transaction
+      });
+      const existingIds = existing.map((question) => question.question_id);
+      if (existingIds.length) {
+        await QuestionOption.destroy({
+          where: { question_id: existingIds },
+          transaction
+        });
+        await Question.destroy({
+          where: { question_id: existingIds, session_id: sessionId },
+          transaction
+        });
+      }
+    }
+
+    const currentMax =
+      mode === "replace"
+        ? 0
+        : Number(
+            (await Question.max("display_order", {
+              where: { session_id: sessionId },
+              transaction
+            })) || 0
+          );
+
+    for (let index = 0; index < questions.length; index += 1) {
+      const input = questions[index];
+      const isPoll = input.question_type === "poll";
+      const isSurvey = input.question_type === "survey";
+      const isEmojiReaction = input.question_type === "emoji_reaction";
+      const isNonScored = isPoll || isSurvey || isEmojiReaction;
+      const question = await Question.create(
+        {
+          session_id: validation.session.session_id,
+          dept_id: validation.session.dept_id,
+          question_type: input.question_type,
+          question_text: input.question_text,
+          media_url: input.media_url || null,
+          media_type: input.media_type || null,
+          media_thumbnail_url: input.media_thumbnail_url || null,
+          is_quiz_mode: isNonScored ? false : input.is_quiz_mode ?? false,
+          points_value: isNonScored ? 0 : input.points_value || 10,
+          time_limit_seconds:
+            isSurvey || isSessionQuizTotalTimeEnabled(validation.session)
+              ? null
+              : input.time_limit_seconds || null,
+          allow_multiple_select: isEmojiReaction
+            ? false
+            : input.allow_multiple_select ?? false,
+          survey_subtype: isSurvey ? input.survey_subtype || null : null,
+          rating_min: input.rating_min ?? 1,
+          rating_max: input.rating_max ?? 10,
+          rating_min_label: input.rating_min_label || null,
+          rating_max_label: input.rating_max_label || null,
+          is_live: false,
+          show_leaderboard: false,
+          display_order: currentMax + index + 1
+        },
+        { transaction }
+      );
+
+      if (Array.isArray(input.options) && input.options.length) {
+        await QuestionOption.bulkCreate(
+          input.options.map((option, optionIndex) => ({
+            question_id: question.question_id,
+            option_text: option.option_text,
+            media_url: option.media_url || null,
+            is_correct: isNonScored ? false : option.is_correct ?? false,
+            display_order: optionIndex + 1
+          })),
+          { transaction }
+        );
+      }
+    }
+    return questions.length;
+  });
+
+  return {
+    created_count: createdCount,
+    mode,
+    questions: await listSessionQuestions({ sessionId, user })
+  };
 }
 
 async function getQuestionById({ questionId, user }) {
@@ -706,6 +878,8 @@ async function openQuestionForReattempt({ questionId, user }) {
 module.exports = {
   listSessionQuestions,
   createQuestion,
+  validateQuestionImport,
+  importQuestions,
   getQuestionById,
   updateQuestion,
   deleteQuestion,
