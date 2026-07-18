@@ -6,6 +6,7 @@ const apiRoutes = require("./routes");
 const { healthHandler } = require("./health");
 const { errorResponse } = require("./utils/response");
 const { getFrontendPublicUrl, buildSessionJoinPath } = require("./config/publicAppUrl");
+const { requestContextMiddleware } = require("./utils/audit-context");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(
   })
 );
 app.use(cors());
+app.use(requestContextMiddleware);
 // Question import previews can contain up to 500 parsed rows.
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));

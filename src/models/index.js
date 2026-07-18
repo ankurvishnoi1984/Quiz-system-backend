@@ -10,6 +10,8 @@ const QaQuestion = require("./qa-question.model");
 const QaUpvote = require("./qa-upvote.model");
 const MediaAsset = require("./media-asset.model");
 const MailConfig = require("./mail-config.model");
+const AuditLog = require("./audit-log.model");
+const registerAuditHooks = require("./register-audit-hooks");
 
 Client.hasMany(Department, { foreignKey: "client_id" });
 Department.belongsTo(Client, { foreignKey: "client_id" });
@@ -54,7 +56,7 @@ MediaAsset.belongsTo(Department, { foreignKey: "dept_id" });
 User.hasMany(MediaAsset, { foreignKey: "uploaded_by" });
 MediaAsset.belongsTo(User, { foreignKey: "uploaded_by" });
 
-module.exports = {
+const models = {
   User,
   Client,
   Department,
@@ -66,5 +68,10 @@ module.exports = {
   QaQuestion,
   QaUpvote,
   MediaAsset,
-  MailConfig
+  MailConfig,
+  AuditLog
 };
+
+registerAuditHooks(models);
+
+module.exports = models;

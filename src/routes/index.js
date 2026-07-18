@@ -13,6 +13,7 @@ const analyticsRoutes = require("./analytics.routes");
 const participantRoutes = require("./participant.routes");
 const presentViewRoutes = require("./present-view.routes");
 const websocketMonitorRoutes = require("./websocket-monitor.routes");
+const auditLogRoutes = require("./audit-log.routes");
 const aiRoutes = require("./ai.routes");
 
 const router = express.Router();
@@ -20,6 +21,7 @@ const router = express.Router();
 router.get("/health", healthHandler);
 
 router.use("/auth", authRoutes);
+router.use("/audit-logs", auditLogRoutes);
 router.use("/users", userRoutes);
 router.use("/clients", clientRoutes);
 router.use("/departments", departmentRoutes);
