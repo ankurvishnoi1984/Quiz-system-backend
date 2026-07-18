@@ -36,6 +36,13 @@ function validateCreateQuestionPayload(payload) {
         errors.push(`option ${index + 1} must include option_text`);
       }
     });
+
+    const optionTexts = payload.options
+      .filter((option) => typeof option?.option_text === "string" && option.option_text.trim())
+      .map((option) => option.option_text.trim().toLocaleLowerCase());
+    if (new Set(optionTexts).size !== optionTexts.length) {
+      errors.push("option text values must be unique");
+    }
   }
 
   if (payload?.question_type === "mcq") {
