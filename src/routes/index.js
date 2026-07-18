@@ -13,6 +13,7 @@ const analyticsRoutes = require("./analytics.routes");
 const participantRoutes = require("./participant.routes");
 const presentViewRoutes = require("./present-view.routes");
 const websocketMonitorRoutes = require("./websocket-monitor.routes");
+const aiRoutes = require("./ai.routes");
 
 const router = express.Router();
 
@@ -31,5 +32,6 @@ router.use("/", participantRoutes);
 router.use("/", presentViewRoutes);
 router.use("/", analyticsRoutes);
 router.use("/", websocketMonitorRoutes);
+router.use("/", aiRoutes);
 
 module.exports = router;
