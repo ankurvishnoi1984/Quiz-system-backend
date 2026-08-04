@@ -460,6 +460,7 @@ async function archiveSession({ sessionId, user }) {
 /**
  * Soft-delete all responses and participants for a session (no hard deletes).
  * Participants can rejoin as new records afterward.
+ * Completed sessions are moved back to draft so they can be edited/relaunched.
  */
 async function resetSessionResponses({ sessionId, user }) {
   const session = await getSessionOrThrow(sessionId);
@@ -470,6 +471,8 @@ async function resetSessionResponses({ sessionId, user }) {
     error.statusCode = 400;
     throw error;
   }
+
+  const wasCompleted = session.status === "completed";
 
   const result = await sequelize.transaction(async (transaction) => {
     // Soft-delete only (paranoid models). Never pass force: true here.
@@ -496,10 +499,20 @@ async function resetSessionResponses({ sessionId, user }) {
       }
     );
 
+    if (wasCompleted) {
+      session.status = "draft";
+      if (Object.prototype.hasOwnProperty.call(session.dataValues, "ended_at")) {
+        session.ended_at = null;
+      }
+      await session.save({ transaction });
+    }
+
     return {
       session_id: session.session_id,
+      status: session.status,
       responses_cleared: responsesCleared,
-      participants_cleared: participantsCleared
+      participants_cleared: participantsCleared,
+      restored_to_draft: wasCompleted
     };
   });
 
