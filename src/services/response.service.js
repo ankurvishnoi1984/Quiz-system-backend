@@ -357,7 +357,10 @@ async function submitResponse({ participant, input }) {
       where: {
         question_id: question.question_id,
         participant_id: participant.participant_id
-      }
+      },
+      // Answer replacement must remove prior rows or unique (question, participant, option)
+      // conflicts with soft-deleted rows. Session reset uses soft-delete separately.
+      force: true
     });
 
     const rows = await Response.bulkCreate(

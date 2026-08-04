@@ -57,11 +57,19 @@ const Response = sequelize.define(
     submitted_at: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   },
   {
     tableName: "responses",
-    timestamps: false
+    timestamps: true,
+    createdAt: false,
+    updatedAt: false,
+    paranoid: true,
+    deletedAt: "deleted_at"
   }
 );
 

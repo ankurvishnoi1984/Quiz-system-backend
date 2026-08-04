@@ -69,6 +69,11 @@ router.delete(
   sessionController.remove
 );
 router.post(
+  "/sessions/:sessionId/reset-responses",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  sessionController.resetResponses
+);
+router.post(
   "/sessions/:sessionId/start",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.start

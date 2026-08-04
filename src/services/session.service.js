@@ -457,6 +457,55 @@ async function archiveSession({ sessionId, user }) {
   return session;
 }
 
+/**
+ * Soft-delete all responses and participants for a session (no hard deletes).
+ * Participants can rejoin as new records afterward.
+ */
+async function resetSessionResponses({ sessionId, user }) {
+  const session = await getSessionOrThrow(sessionId);
+  assertSessionWriteAccess(user, session);
+
+  if (session.status === "archived") {
+    const error = new Error("Cannot reset responses for an archived session");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await sequelize.transaction(async (transaction) => {
+    // Soft-delete only (paranoid models). Never pass force: true here.
+    const [responsesCleared] = await Response.update(
+      { deleted_at: new Date() },
+      {
+        where: {
+          session_id: session.session_id,
+          deleted_at: null
+        },
+        transaction,
+        paranoid: false
+      }
+    );
+    const [participantsCleared] = await Participant.update(
+      { deleted_at: new Date() },
+      {
+        where: {
+          session_id: session.session_id,
+          deleted_at: null
+        },
+        transaction,
+        paranoid: false
+      }
+    );
+
+    return {
+      session_id: session.session_id,
+      responses_cleared: responsesCleared,
+      participants_cleared: participantsCleared
+    };
+  });
+
+  return result;
+}
+
 async function endSessionBySystem(session, endedAt = new Date()) {
   if (!session || !["live", "paused"].includes(session.status)) {
     return null;
@@ -682,6 +731,7 @@ module.exports = {
   getSessionById,
   updateSession,
   archiveSession,
+  resetSessionResponses,
   endSessionBySystem,
   transitionSessionStatus,
   getSessionByCode,

@@ -6,6 +6,7 @@ const {
   getSessionById,
   updateSession,
   archiveSession,
+  resetSessionResponses,
   transitionSessionStatus,
   getSessionByCode,
   getSessionJoinBlockInfo,
@@ -129,6 +130,34 @@ async function remove(req, res) {
       user: req.user
     });
     return successResponse(res, { session }, "Session archived", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
+async function resetResponses(req, res) {
+  try {
+    const result = await resetSessionResponses({
+      sessionId: Number(req.params.sessionId),
+      user: req.user
+    });
+
+    const session = await Session.findByPk(result.session_id);
+    if (session?.session_code) {
+      notifySessionUpdate(session.session_code, session.status);
+      if (session.leaderboard_enabled) {
+        buildSessionLeaderboard(session.session_id)
+          .then((leaderboard) => notifyLeaderboard(session.session_code, leaderboard))
+          .catch(() => {});
+      }
+    }
+
+    return successResponse(
+      res,
+      result,
+      "Session responses and participants were cleared",
+      200
+    );
   } catch (err) {
     return errorResponse(res, err.message, err.statusCode || 500);
   }
@@ -447,6 +476,7 @@ module.exports = {
   listParticipants,
   update,
   remove,
+  resetResponses,
   duplicate,
   start: lifecycleAction("start"),
   pause: lifecycleAction("pause"),

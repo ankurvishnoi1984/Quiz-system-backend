@@ -58,11 +58,19 @@ const Participant = sequelize.define(
     last_active_at: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   },
   {
     tableName: "participants",
-    timestamps: false
+    timestamps: true,
+    createdAt: false,
+    updatedAt: false,
+    paranoid: true,
+    deletedAt: "deleted_at"
   }
 );
 
