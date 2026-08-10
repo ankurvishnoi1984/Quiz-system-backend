@@ -219,6 +219,7 @@ async function lookupByCode(req, res) {
           scheduled_time: session.scheduled_time || null,
           department: session.department,
           join_type: session.join_type,
+          logo_url: session.logo_url || null,
           leaderboard_enabled: Boolean(session.leaderboard_enabled),
           survey_results_enabled: Boolean(session.survey_results_enabled),
           show_question_leaderboard: Boolean(session.show_question_leaderboard),

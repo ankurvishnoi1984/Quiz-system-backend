@@ -9,17 +9,18 @@ function validateScheduledDate(value) {
 function validateScheduledTime(value) {
   if (value == null || value === "") return null;
   const trimmed = String(value).trim();
-  if (!/^\d{2}:\d{2}$/.test(trimmed)) {
+  // Accept HH:mm or HH:mm:ss (MySQL TIME / some browsers).
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
     return "scheduled_time must be a valid time (HH:mm)";
   }
-  const [hours, minutes] = trimmed.split(":").map(Number);
-  if (hours > 23 || minutes > 59) {
+  const [hours, minutes, seconds = 0] = trimmed.split(":").map(Number);
+  if (hours > 23 || minutes > 59 || seconds > 59) {
     return "scheduled_time must be a valid time (HH:mm)";
   }
   return null;
 }
 
-function validateAutoEndFields(payload) {
+function validateAutoEndFields(payload, { requireFuture = true } = {}) {
   const errors = [];
   const enabled = Boolean(payload?.auto_end_enabled);
   if (!enabled) return errors;
@@ -47,7 +48,8 @@ function validateAutoEndFields(payload) {
     return errors;
   }
 
-  if (endAt.getTime() <= Date.now()) {
+  // Future check is enforced on create; updates may re-save an existing past end.
+  if (requireFuture && endAt.getTime() <= Date.now()) {
     errors.push("automatic end must be scheduled in the future");
   }
 
@@ -114,6 +116,12 @@ function validateCreateSessionPayload(payload) {
   const scheduledTimeError = validateScheduledTime(payload?.scheduled_time);
   if (scheduledTimeError) errors.push(scheduledTimeError);
 
+  if (payload?.logo_url !== undefined && payload.logo_url !== null && payload.logo_url !== "") {
+    if (typeof payload.logo_url !== "string" || payload.logo_url.trim().length === 0) {
+      errors.push("logo_url must be a non-empty string or null");
+    }
+  }
+
   const quizTotalTimeError = validateQuizTotalTimeMinutes(payload);
   if (quizTotalTimeError) errors.push(quizTotalTimeError);
 
@@ -140,7 +148,8 @@ function validateUpdateSessionPayload(payload) {
     "scheduled_time",
     "auto_end_enabled",
     "auto_end_date",
-    "auto_end_time"
+    "auto_end_time",
+    "logo_url"
   ];
 
   if (!payload || typeof payload !== "object") {
@@ -178,11 +187,17 @@ function validateUpdateSessionPayload(payload) {
   const scheduledTimeError = validateScheduledTime(payload?.scheduled_time);
   if (scheduledTimeError) errors.push(scheduledTimeError);
 
+  if (payload?.logo_url !== undefined && payload.logo_url !== null && payload.logo_url !== "") {
+    if (typeof payload.logo_url !== "string" || payload.logo_url.trim().length === 0) {
+      errors.push("logo_url must be a non-empty string or null");
+    }
+  }
+
   const quizTotalTimeError = validateQuizTotalTimeMinutes(payload);
   if (quizTotalTimeError) errors.push(quizTotalTimeError);
 
   if (payload?.auto_end_enabled !== undefined) {
-    errors.push(...validateAutoEndFields(payload));
+    errors.push(...validateAutoEndFields(payload, { requireFuture: false }));
   }
 
   return errors;

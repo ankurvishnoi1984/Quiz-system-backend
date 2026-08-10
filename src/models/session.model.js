@@ -109,6 +109,10 @@ const Session = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true
     },
+    logo_url: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     started_at: {
       type: DataTypes.DATE,
       allowNull: true

@@ -207,7 +207,11 @@ async function createSession({ deptId, input, user }) {
        input.participant_navigation_enabled && input.quiz_total_time_minutes != null
          ? Number(input.quiz_total_time_minutes)
          : null,
-     qr_code_url: input.qr_code_url || null
+     qr_code_url: input.qr_code_url || null,
+     logo_url:
+       input.logo_url != null && String(input.logo_url).trim()
+         ? String(input.logo_url).trim()
+         : null
    });
 }
 
@@ -273,7 +277,8 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
         show_question_leaderboard: source.show_question_leaderboard ?? false,
         participant_navigation_enabled: source.participant_navigation_enabled ?? true,
         quiz_total_time_minutes: source.quiz_total_time_minutes ?? null,
-        qr_code_url: null
+        qr_code_url: null,
+        logo_url: source.logo_url || null
       },
       { transaction }
     );
@@ -360,14 +365,14 @@ async function updateSession({ sessionId, input, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
 
-  const liveSettingsOnly = ["leaderboard_enabled", "survey_results_enabled", "title"];
+  const liveSettingsOnly = ["leaderboard_enabled", "survey_results_enabled", "title", "logo_url"];
   const inputKeys = Object.keys(input || {});
 
   if (session.status !== "draft") {
     const disallowed = inputKeys.filter((key) => !liveSettingsOnly.includes(key));
     if (disallowed.length > 0) {
       const error = new Error(
-        "Only session title and leaderboard settings can be updated while the session is live"
+        "Only session title, logo, and leaderboard settings can be updated while the session is live"
       );
       error.statusCode = 400;
       throw error;
@@ -442,7 +447,13 @@ async function updateSession({ sessionId, input, user }) {
         ? input.auto_end_enabled
           ? input.auto_end_time || null
           : null
-        : session.auto_end_time
+        : session.auto_end_time,
+    logo_url:
+      input.logo_url !== undefined
+        ? input.logo_url != null && String(input.logo_url).trim()
+          ? String(input.logo_url).trim()
+          : null
+        : session.logo_url
   });
 
   await session.save();
