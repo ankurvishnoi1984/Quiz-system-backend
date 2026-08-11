@@ -99,7 +99,7 @@ async function listQaQuestions(req, res) {
 async function presentSlide(req, res) {
   try {
     const sessionId = Number(req.params.sessionId);
-    const state = getPresentSlideIndexForViewer({
+    const state = await getPresentSlideIndexForViewer({
       sessionId,
       viewer: req.presenterViewer
     });

@@ -3,9 +3,21 @@ const { logAuditEvent } = require("../services/audit-log.service");
 const AUDIT_BEFORE_UPDATE = Symbol("auditBeforeUpdate");
 const AUDIT_BEFORE_DELETE = Symbol("auditBeforeDelete");
 
+/** Secrets must never be written into audit_logs, even though the row itself is auditable. */
+const REDACTED_FIELDS = new Set(["token", "password_hash", "refresh_token", "smtp_password"]);
+const REDACTED_PLACEHOLDER = "[redacted]";
+
+function redact(values) {
+  if (!values || typeof values !== "object") return values;
+  return Object.keys(values).reduce((result, key) => {
+    result[key] = REDACTED_FIELDS.has(key) && values[key] != null ? REDACTED_PLACEHOLDER : values[key];
+    return result;
+  }, {});
+}
+
 function plainValues(instance) {
   if (!instance) return null;
-  return typeof instance.toJSON === "function" ? instance.toJSON() : { ...instance };
+  return redact(typeof instance.toJSON === "function" ? instance.toJSON() : { ...instance });
 }
 
 function entityType(model) {
@@ -29,10 +41,12 @@ function scopeFromValues(values = {}) {
 function changedValues(instance, source) {
   const changed = instance.changed();
   const fields = Array.isArray(changed) ? changed : [];
-  return fields.reduce((result, field) => {
-    result[field] = source[field];
-    return result;
-  }, {});
+  return redact(
+    fields.reduce((result, field) => {
+      result[field] = source[field];
+      return result;
+    }, {})
+  );
 }
 
 function registerModelAuditHooks(model) {
@@ -120,7 +134,7 @@ function registerModelAuditHooks(model) {
         action: "update",
         entity_type: type,
         entity_id: null,
-        after_values: options.attributes || null,
+        after_values: redact(options.attributes) || null,
         metadata: { bulk: true, where: options.where || null }
       },
       options

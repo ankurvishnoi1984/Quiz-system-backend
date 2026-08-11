@@ -8,12 +8,26 @@ const {
   buildSessionLeaderboard,
   getSessionSurveySummaryPayload
 } = require("./response.service");
-const { Participant, Question } = require("../models");
+const { Participant, Question, Session } = require("../models");
+const { sequelize } = require("../config/database");
 const { listQaQuestionsForPresenterViewer } = require("./qa.service");
-const { buildPresentViewUrl } = require("../config/publicAppUrl");
+const { buildPresentViewUrl, buildEmbedDisplayUrl } = require("../config/publicAppUrl");
+const { isIntegrationsEnabled } = require("../config/integrations");
 const { notifyPresentSlideChanged } = require("./websocket.service");
+const {
+  getOrCreateEmbedToken,
+  rotateEmbedToken,
+  revokeEmbedTokens
+} = require("./session-embed-token.service");
 
 const PRESENTER_VIEWER_TOKEN_EXPIRY = process.env.PRESENTER_VIEWER_TOKEN_EXPIRY || "12h";
+
+/**
+ * Core present-mode slide state stays in-memory (pre-integrations behaviour).
+ * Optional DB columns (present_slide_*) are only touched via raw SQL when
+ * integrations are on — they are NOT on the Session Sequelize model, so rolling
+ * back the migration cannot break create/update/list session flows.
+ */
 const presentSlideBySessionId = new Map();
 
 function clampSlideIndex(slideIndex, slideTotal) {
@@ -25,8 +39,65 @@ function clampSlideIndex(slideIndex, slideTotal) {
   return Math.min(Math.max(0, index), slideTotal - 1);
 }
 
-function getPresentSlideState(sessionId) {
+function memorySlideState(sessionId) {
   return presentSlideBySessionId.get(Number(sessionId)) || { slide_index: 0, updated_at: null };
+}
+
+function toSlideState(row) {
+  const index = Number(row?.present_slide_index);
+  const updatedAt = row?.present_slide_updated_at;
+  return {
+    slide_index: Number.isFinite(index) ? index : 0,
+    updated_at: updatedAt ? new Date(updatedAt).toISOString() : null
+  };
+}
+
+async function readPersistedSlideState(sessionId) {
+  if (!isIntegrationsEnabled()) return null;
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT present_slide_index, present_slide_updated_at
+       FROM sessions
+       WHERE session_id = :sessionId
+       LIMIT 1`,
+      { replacements: { sessionId: Number(sessionId) } }
+    );
+    const row = rows?.[0];
+    if (!row || row.present_slide_index == null) return null;
+    return toSlideState(row);
+  } catch {
+    return null;
+  }
+}
+
+async function persistSlideState(sessionId, state) {
+  if (!isIntegrationsEnabled()) return;
+  try {
+    await sequelize.query(
+      `UPDATE sessions
+       SET present_slide_index = :slideIndex,
+           present_slide_updated_at = :updatedAt
+       WHERE session_id = :sessionId`,
+      {
+        replacements: {
+          sessionId: Number(sessionId),
+          slideIndex: state.slide_index,
+          updatedAt: state.updated_at ? new Date(state.updated_at) : new Date()
+        }
+      }
+    );
+  } catch {
+    // Ignore — memory Map remains the source of truth for core present mode.
+  }
+}
+
+async function readPresentSlideState(sessionId) {
+  const persisted = await readPersistedSlideState(sessionId);
+  if (persisted) {
+    presentSlideBySessionId.set(Number(sessionId), persisted);
+    return persisted;
+  }
+  return memorySlideState(sessionId);
 }
 
 async function setPresentSlideIndex({ sessionId, user, slideIndex, slideTotal }) {
@@ -38,7 +109,9 @@ async function setPresentSlideIndex({ sessionId, user, slideIndex, slideTotal })
     slide_index: nextIndex,
     updated_at: new Date().toISOString()
   };
-  presentSlideBySessionId.set(Number(sessionId), state);
+  presentSlideBySessionId.set(Number(session.session_id), state);
+  await persistSlideState(session.session_id, state);
+
   notifyPresentSlideChanged(session.session_code, {
     session_id: session.session_id,
     slide_index: nextIndex
@@ -46,15 +119,15 @@ async function setPresentSlideIndex({ sessionId, user, slideIndex, slideTotal })
   return state;
 }
 
-function getPresentSlideIndexForViewer({ sessionId, viewer }) {
+async function getPresentSlideIndexForViewer({ sessionId, viewer }) {
   assertPresenterViewerSession(viewer, sessionId);
-  return getPresentSlideState(sessionId);
+  return readPresentSlideState(sessionId);
 }
 
 async function getPresentSlideIndexForHost({ sessionId, user }) {
   const session = await getSessionOrThrow(sessionId);
   assertSessionWriteAccess(user, session);
-  return getPresentSlideState(sessionId);
+  return readPresentSlideState(sessionId);
 }
 
 async function createPresentViewLink({ sessionId, user, baseUrl }) {
@@ -82,6 +155,47 @@ async function createPresentViewLink({ sessionId, user, baseUrl }) {
     view_token: token,
     view_url: buildPresentViewUrl(session.session_id, token, baseUrl),
     token_expires_in: PRESENTER_VIEWER_TOKEN_EXPIRY
+  };
+}
+
+async function buildEmbedLinkPayload({ sessionId, user, baseUrl, action = "get" }) {
+  if (!isIntegrationsEnabled()) {
+    const error = new Error("Platform integrations are disabled");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await getSessionOrThrow(sessionId);
+  assertSessionWriteAccess(user, session);
+
+  if (session.status === "archived") {
+    const error = new Error("Embed links are not available for archived sessions");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (action === "revoke") {
+    const revoked = await revokeEmbedTokens({ sessionId: session.session_id });
+    return {
+      session_id: session.session_id,
+      session_code: session.session_code,
+      revoked_count: revoked,
+      embed_token: null,
+      embed_url: null
+    };
+  }
+
+  const row =
+    action === "rotate"
+      ? await rotateEmbedToken({ sessionId: session.session_id, userId: user?.user_id })
+      : await getOrCreateEmbedToken({ sessionId: session.session_id, userId: user?.user_id });
+
+  return {
+    session_id: session.session_id,
+    session_code: session.session_code,
+    embed_token: row.token,
+    embed_url: buildEmbedDisplayUrl(session.session_id, row.token, baseUrl),
+    expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null
   };
 }
 
@@ -160,6 +274,7 @@ async function getPresentViewSurveySummary({ sessionId, viewer }) {
 
 module.exports = {
   createPresentViewLink,
+  buildEmbedLinkPayload,
   getPresentViewSession,
   listPresentViewQuestions,
   listPresentViewResponses,

@@ -1,5 +1,7 @@
 const { WebSocketServer } = require("ws");
 const { verifyAccessToken } = require("../utils/jwt");
+const { isIntegrationsEnabled } = require("../config/integrations");
+const { resolveEmbedToken } = require("./session-embed-token.service");
 
 const activeConnections = new Map();
 
@@ -126,6 +128,23 @@ function setupWebSocketServer(server) {
       ws.role = role;
       ws.user = decoded;
       ws.authStatus = authStatus;
+
+      // Embed tokens are opaque and only apply when integrations are enabled.
+      if (isIntegrationsEnabled() && !decoded && token && role === "viewer") {
+        resolveEmbedToken(token)
+          .then((viewer) => {
+            if (!viewer || ws.readyState !== ws.OPEN) return;
+            ws.user = viewer;
+            ws.authStatus = "embed_token_ok";
+            wsLog("info", "auth_ok", {
+              session: sessionCode,
+              role: viewer.role,
+              session_id: viewer.session_id,
+              via: "embed_token"
+            });
+          })
+          .catch(() => {});
+      }
 
       ws.on("close", (code, reason) => {
         wsLog("info", "connection_closed", {

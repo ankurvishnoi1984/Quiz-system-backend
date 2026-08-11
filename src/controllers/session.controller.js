@@ -34,7 +34,12 @@ const {
 const { getSessionSummaryReport, getSessionQuestionsReport, getSessionParticipantsReport, getSessionQaReport } = require("../services/session-report.service");
 const { Session } = require("../models");
 const { getFrontendPublicUrl } = require("../config/publicAppUrl");
-const { createPresentViewLink, setPresentSlideIndex, getPresentSlideIndexForHost } = require("../services/present-view.service");
+const {
+  createPresentViewLink,
+  buildEmbedLinkPayload,
+  setPresentSlideIndex,
+  getPresentSlideIndexForHost
+} = require("../services/present-view.service");
 
 async function listByDepartment(req, res) {
   try {
@@ -297,6 +302,25 @@ async function presentViewLink(req, res) {
   }
 }
 
+async function embedLink(req, res) {
+  try {
+    const action = String(req.body?.action || "get").toLowerCase();
+    if (!["get", "rotate", "revoke"].includes(action)) {
+      return errorResponse(res, "Unsupported embed link action", 400);
+    }
+
+    const data = await buildEmbedLinkPayload({
+      sessionId: Number(req.params.sessionId),
+      user: req.user,
+      baseUrl: getFrontendPublicUrl(req),
+      action
+    });
+    return successResponse(res, data, "Embed link updated", 200);
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 500);
+  }
+}
+
 async function getPresentSlide(req, res) {
   try {
     const data = await getPresentSlideIndexForHost({
@@ -487,6 +511,7 @@ module.exports = {
   joinByCode,
   qr,
   presentViewLink,
+  embedLink,
   getPresentSlide,
   presentSlide,
   closeAllQuestions,

@@ -113,6 +113,13 @@ router.post(
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
   sessionController.presentViewLink
 );
+if (require("../config/integrations").isIntegrationsEnabled()) {
+  router.post(
+    "/sessions/:sessionId/embed-link",
+    authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+    sessionController.embedLink
+  );
+}
 router.get(
   "/sessions/:sessionId/present-slide",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

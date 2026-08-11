@@ -56,10 +56,38 @@ function buildPresentViewUrl(sessionId, token, reqOrOrigin) {
   return origin ? `${origin}${path}` : path;
 }
 
+function buildEmbedPath(surface, sessionId, token) {
+  const id = sessionId != null ? String(sessionId).trim() : "";
+  const t = token != null ? String(token).trim() : "";
+  if (!id || !t) return `/embed/${surface}`;
+  return `/embed/${surface}?session=${encodeURIComponent(id)}&token=${encodeURIComponent(t)}`;
+}
+
+function buildEmbedDisplayUrl(sessionId, token, reqOrOrigin) {
+  const origin =
+    typeof reqOrOrigin === "string"
+      ? trimTrailingSlash(reqOrOrigin)
+      : getFrontendPublicUrl(reqOrOrigin);
+  const path = buildEmbedPath("display", sessionId, token);
+  return origin ? `${origin}${path}` : path;
+}
+
+function buildEmbedControlsUrl(sessionId, reqOrOrigin) {
+  const origin =
+    typeof reqOrOrigin === "string"
+      ? trimTrailingSlash(reqOrOrigin)
+      : getFrontendPublicUrl(reqOrOrigin);
+  const id = sessionId != null ? String(sessionId).trim() : "";
+  const path = id ? `/embed/controls?session=${encodeURIComponent(id)}` : "/embed/controls";
+  return origin ? `${origin}${path}` : path;
+}
+
 module.exports = {
   getFrontendPublicUrl,
   buildSessionJoinPath,
   buildSessionJoinUrl,
   buildPresentViewPath,
-  buildPresentViewUrl
+  buildPresentViewUrl,
+  buildEmbedDisplayUrl,
+  buildEmbedControlsUrl
 };

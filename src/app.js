@@ -7,17 +7,28 @@ const { healthHandler } = require("./health");
 const { errorResponse } = require("./utils/response");
 const { getFrontendPublicUrl, buildSessionJoinPath } = require("./config/publicAppUrl");
 const { requestContextMiddleware } = require("./utils/audit-context");
+const { isIntegrationsEnabled } = require("./config/integrations");
+const { embedFrameHeadersMiddleware } = require("./config/embedSecurity");
 
 const app = express();
 
 app.get("/health", healthHandler);
 
+const integrationsOn = isIntegrationsEnabled();
+
 app.use(
   helmet({
     // Allow frontend apps on another origin to embed uploaded images/videos.
-    crossOriginResourcePolicy: { policy: "cross-origin" }
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    // Only open framing when integrations are enabled; otherwise keep Helmet's
+    // default X-Frame-Options DENY so core app behaviour matches pre-Phase-0.
+    frameguard: integrationsOn ? false : undefined,
+    contentSecurityPolicy: false
   })
 );
+if (integrationsOn) {
+  app.use(embedFrameHeadersMiddleware);
+}
 app.use(cors());
 app.use(requestContextMiddleware);
 // Question import previews can contain up to 500 parsed rows.
