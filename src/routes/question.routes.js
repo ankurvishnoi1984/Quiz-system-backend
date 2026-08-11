@@ -1,5 +1,6 @@
 const express = require("express");
 const questionController = require("../controllers/question.controller");
+const questionSetController = require("../controllers/question-set.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
 const authorizeRoles = require("../middlewares/role.middleware");
 
@@ -8,6 +9,26 @@ const router = express.Router();
 // Scope auth to question-related paths only.
 router.use(["/sessions", "/questions"], authMiddleware);
 
+router.get(
+  "/sessions/:sessionId/question-sets",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionSetController.list
+);
+router.post(
+  "/sessions/:sessionId/question-sets",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionSetController.create
+);
+router.put(
+  "/sessions/:sessionId/question-sets/:setId",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionSetController.update
+);
+router.delete(
+  "/sessions/:sessionId/question-sets/:setId",
+  authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),
+  questionSetController.remove
+);
 router.get(
   "/sessions/:sessionId/questions",
   authorizeRoles("super_admin", "client_admin", "dept_admin", "host"),

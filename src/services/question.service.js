@@ -3,6 +3,7 @@ const { sequelize } = require("../config/database");
 const {
   Question,
   QuestionOption,
+  QuestionSet,
   Session,
   Department,
   Client,
@@ -92,6 +93,27 @@ async function getSessionForQuestionFlow(sessionId) {
   return session;
 }
 
+async function resolveQuestionSetId(sessionId, setId) {
+  if (setId === undefined) return undefined;
+  if (setId === null || setId === "") return null;
+  const id = Number(setId);
+  if (!Number.isFinite(id) || id <= 0) {
+    const error = new Error("set_id must be a number");
+    error.statusCode = 400;
+    throw error;
+  }
+  const row = await QuestionSet.findOne({
+    where: { set_id: id, session_id: sessionId },
+    attributes: ["set_id"]
+  });
+  if (!row) {
+    const error = new Error("Question set not found in this session");
+    error.statusCode = 400;
+    throw error;
+  }
+  return id;
+}
+
 async function listSessionQuestions({ sessionId, user, publicView = false }) {
   const session = await getSessionForQuestionFlow(sessionId);
 
@@ -101,8 +123,12 @@ async function listSessionQuestions({ sessionId, user, publicView = false }) {
 
   return Question.findAll({
     where: { session_id: sessionId },
-    include: [{ model: QuestionOption }],
+    include: [
+      { model: QuestionOption },
+      { model: QuestionSet, as: "set", attributes: ["set_id", "name", "display_order"], required: false }
+    ],
     order: [
+      [{ model: QuestionSet, as: "set" }, "display_order", "ASC"],
       ["display_order", "ASC"],
       [QuestionOption, "display_order", "ASC"]
     ]
@@ -120,6 +146,7 @@ async function createQuestion({ sessionId, input, user }) {
   }
 
   const nextOrder = (await Question.count({ where: { session_id: sessionId } })) + 1;
+  const setId = await resolveQuestionSetId(sessionId, input.set_id);
 
   const isPoll = input.question_type === "poll";
   const isSurvey = input.question_type === "survey";
@@ -145,7 +172,8 @@ async function createQuestion({ sessionId, input, user }) {
     rating_max_label: input.rating_max_label || null,
     is_live: false,
     show_leaderboard: false,
-    display_order: input.display_order || nextOrder
+    display_order: input.display_order || nextOrder,
+    set_id: setId === undefined ? null : setId
   });
 
   if (Array.isArray(input.options) && input.options.length > 0) {
@@ -408,6 +436,10 @@ async function updateQuestion({ questionId, input, user }) {
           : question.rating_max_label
     });
 
+    if (input.set_id !== undefined) {
+      question.set_id = await resolveQuestionSetId(question.session_id, input.set_id);
+    }
+
     await question.save();
 
     if (Array.isArray(input.options)) {
@@ -532,6 +564,20 @@ async function setQuestionLiveState({ questionId, user, isLive }) {
     const error = new Error("Question can be activated only in live sessions");
     error.statusCode = 400;
     throw error;
+  }
+  if (isLive) {
+    // With question sets, each participant only sees their assigned set, so activating a single
+    // question would leave other sets' participants with nothing. Force all-or-nothing activation.
+    const setQuestionCount = await Question.count({
+      where: { session_id: session.session_id, set_id: { [Op.ne]: null } }
+    });
+    if (setQuestionCount > 0) {
+      const error = new Error(
+        "This session uses question sets. Use \"Activate all questions\" so every set goes live together."
+      );
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   let deactivatedQuestionIds = [];

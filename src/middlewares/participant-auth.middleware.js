@@ -23,6 +23,7 @@ async function participantAuthMiddleware(req, res, next) {
       participant_id: participant.participant_id,
       session_id: participant.session_id,
       dept_id: participant.dept_id,
+      assigned_set_id: participant.assigned_set_id || null,
       role: "participant"
     };
     return next();

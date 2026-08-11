@@ -7,6 +7,7 @@ const Session = require("./session.model");
 const SessionEmbedToken = require("./session-embed-token.model");
 const Participant = require("./participant.model");
 const Question = require("./question.model");
+const QuestionSet = require("./question-set.model");
 const QuestionOption = require("./question-option.model");
 const Response = require("./response.model");
 const QaQuestion = require("./qa-question.model");
@@ -35,6 +36,12 @@ Department.hasMany(Participant, { foreignKey: "dept_id" });
 Participant.belongsTo(Department, { foreignKey: "dept_id" });
 Session.hasMany(Question, { foreignKey: "session_id" });
 Question.belongsTo(Session, { foreignKey: "session_id" });
+Session.hasMany(QuestionSet, { foreignKey: "session_id" });
+QuestionSet.belongsTo(Session, { foreignKey: "session_id" });
+QuestionSet.hasMany(Question, { foreignKey: "set_id", as: "questions" });
+Question.belongsTo(QuestionSet, { foreignKey: "set_id", as: "set" });
+QuestionSet.hasMany(Participant, { foreignKey: "assigned_set_id", as: "assignedParticipants" });
+Participant.belongsTo(QuestionSet, { foreignKey: "assigned_set_id", as: "assignedSet" });
 Department.hasMany(Question, { foreignKey: "dept_id" });
 Question.belongsTo(Department, { foreignKey: "dept_id" });
 Question.hasMany(QuestionOption, { foreignKey: "question_id" });
@@ -76,6 +83,7 @@ const models = {
   SessionEmbedToken,
   Participant,
   Question,
+  QuestionSet,
   QuestionOption,
   Response,
   QaQuestion,

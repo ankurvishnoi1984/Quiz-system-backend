@@ -132,6 +132,10 @@ const Question = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false
     },
+    set_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     template_id: {
       type: DataTypes.INTEGER,
       allowNull: true

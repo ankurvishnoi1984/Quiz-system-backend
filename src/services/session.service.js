@@ -287,6 +287,28 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
       { transaction }
     );
 
+    const { QuestionSet } = require("../models");
+    const sourceSets = await QuestionSet.findAll({
+      where: { session_id: sourceSessionId },
+      order: [
+        ["display_order", "ASC"],
+        ["set_id", "ASC"]
+      ],
+      transaction
+    });
+    const setIdMap = new Map();
+    for (const sourceSet of sourceSets) {
+      const copied = await QuestionSet.create(
+        {
+          session_id: newSession.session_id,
+          name: sourceSet.name,
+          display_order: sourceSet.display_order
+        },
+        { transaction }
+      );
+      setIdMap.set(Number(sourceSet.set_id), copied.set_id);
+    }
+
     const questions = await Question.findAll({
       where: { session_id: sourceSessionId },
       include: [{ model: QuestionOption }],
@@ -324,7 +346,8 @@ async function duplicateSession({ sourceSessionId, user, input = {} }) {
           is_live: false,
           show_leaderboard: false,
           display_order: q.display_order,
-          template_id: q.template_id || null
+          template_id: q.template_id || null,
+          set_id: q.set_id ? setIdMap.get(Number(q.set_id)) || null : null
         },
         { transaction }
       );
@@ -687,9 +710,11 @@ async function joinSession({ code, payload }) {
   const session = await getSessionByCode(code);
   const joinPayload = payload || {};
 
-  const existingByIdentity = await findParticipantByNameEmail(session, joinPayload);
+    const existingByIdentity = await findParticipantByNameEmail(session, joinPayload);
   if (existingByIdentity) {
     assertSessionAcceptingJoin(session, { isReturning: true });
+    const { assignRandomSetToParticipant } = require("./question-set.service");
+    await assignRandomSetToParticipant(session, existingByIdentity);
     return finalizeParticipantJoin(session, existingByIdentity, {
       isReturning: true,
       payload: joinPayload
@@ -706,6 +731,8 @@ async function joinSession({ code, payload }) {
       session.join_type !== "name_email";
     if (existingByDevice && !wantsFreshIdentity) {
       assertSessionAcceptingJoin(session, { isReturning: true });
+      const { assignRandomSetToParticipant } = require("./question-set.service");
+      await assignRandomSetToParticipant(session, existingByDevice);
       return finalizeParticipantJoin(session, existingByDevice, {
         isReturning: true,
         payload: joinPayload
@@ -746,6 +773,9 @@ async function joinSession({ code, payload }) {
     device_fingerprint: joinPayload.device_fingerprint || null,
     session_state: null
   });
+
+  const { assignRandomSetToParticipant } = require("./question-set.service");
+  await assignRandomSetToParticipant(session, participant);
 
   return finalizeParticipantJoin(session, participant, {
     isReturning: false,

@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const {
   Response,
   Question,
@@ -303,6 +304,15 @@ async function submitResponse({ participant, input }) {
 
   if (Number(question.session_id) !== Number(participant.session_id)) {
     const error = new Error("Question does not belong to participant session");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (
+    participant.assigned_set_id &&
+    question.set_id &&
+    Number(participant.assigned_set_id) !== Number(question.set_id)
+  ) {
+    const error = new Error("Question is not in your assigned set");
     error.statusCode = 403;
     throw error;
   }
@@ -932,8 +942,16 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
     throw error;
   }
 
+  const questionWhere = { session_id: sessionId, is_live: true };
+  if (participant?.assigned_set_id) {
+    // Participants see their assigned set plus shared questions that belong to no set.
+    questionWhere.set_id = {
+      [Op.or]: [null, Number(participant.assigned_set_id)]
+    };
+  }
+
   let questions = await Question.findAll({
-    where: { session_id: sessionId, is_live: true },
+    where: questionWhere,
     include: [{ model: QuestionOption }],
     order: [
       ["display_order", "ASC"],

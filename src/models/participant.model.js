@@ -51,6 +51,10 @@ const Participant = sequelize.define(
       type: DataTypes.JSON,
       allowNull: true
     },
+    assigned_set_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     joined_at: {
       type: DataTypes.DATE,
       allowNull: true
