@@ -24,6 +24,10 @@ const {
   wantsFreshParticipantIdentity,
   normalizeParticipantNickname
 } = require("./participant.service");
+const {
+  getPlanJoinBlock,
+  notifyHostPlanLimitIfNeeded
+} = require("./plan.service");
 
 function canAccessDepartment(user, department) {
   if (user.role === "super_admin") return true;
@@ -633,9 +637,21 @@ async function listSessionParticipants({ sessionId, user }) {
   }));
 }
 
-async function getSessionJoinBlockInfo(session) {
+async function getSessionJoinBlockInfo(session, { notifyHost = false } = {}) {
+  const planBlock = await getPlanJoinBlock(session);
+  if (planBlock.blocked) {
+    if (notifyHost) {
+      void notifyHostPlanLimitIfNeeded(planBlock.usage);
+    }
+    return {
+      blocked: true,
+      message: planBlock.message,
+      reason: "plan_limit"
+    };
+  }
+
   if (session.status !== "live" && session.status !== "paused") {
-    return { blocked: false, message: null };
+    return { blocked: false, message: null, reason: null };
   }
 
   const questions = await Question.findAll({
@@ -648,17 +664,18 @@ async function getSessionJoinBlockInfo(session) {
   });
 
   if (!isMultiNavTimedJoinClosed(session, questions)) {
-    return { blocked: false, message: null };
+    return { blocked: false, message: null, reason: null };
   }
 
   return {
     blocked: true,
-    message: MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE
+    message: MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE,
+    reason: "timed_join"
   };
 }
 
 async function assertNewParticipantMayJoin(session) {
-  const { blocked, message } = await getSessionJoinBlockInfo(session);
+  const { blocked, message } = await getSessionJoinBlockInfo(session, { notifyHost: true });
   if (!blocked) return;
 
   const error = new Error(message || MULTI_NAV_TIMED_JOIN_CLOSED_MESSAGE);
@@ -697,8 +714,8 @@ async function joinSession({ code, payload }) {
   }
 
   assertSessionAcceptingJoin(session, { isReturning: false });
-  await assertParticipantCapacity(session);
   await assertNewParticipantMayJoin(session);
+  await assertParticipantCapacity(session);
 
   if (session.join_type === "name_email") {
     const email = normalizeParticipantEmail(joinPayload.email);

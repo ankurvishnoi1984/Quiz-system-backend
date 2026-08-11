@@ -38,6 +38,19 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true
     },
+    plan_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    extra_participants: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    plan_limit_email_sent_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true

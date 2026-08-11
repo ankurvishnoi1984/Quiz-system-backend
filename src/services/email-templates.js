@@ -485,11 +485,93 @@ GETTING STARTED
   };
 }
 
+function renderParticipantLimitExceededEmail({
+  fullName,
+  planName,
+  used,
+  limit,
+  brandName,
+  logoCid,
+  logoUrl
+}) {
+  const greeting = fullName ? `Hello ${fullName},` : "Hello,";
+  const loginUrl = buildLoginUrl();
+  const safeGreeting = escapeHtml(greeting);
+  const safePlan = escapeHtml(planName || "your plan");
+  const usedLabel = Number(used) || 0;
+  const limitLabel = Number(limit) || 0;
+
+  const bodyHtml = `
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:${BRAND.slate};">${safeGreeting}</p>
+    <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:${BRAND.slate};">
+      Your participant limit has been reached. New people can no longer join any of your sessions until capacity is available.
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="background-color:${BRAND.amberLight};border:1px solid ${BRAND.amberBorder};border-radius:12px;padding:20px 22px;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${BRAND.amber};">
+            Plan limit reached
+          </p>
+          <p style="margin:0;font-size:16px;line-height:1.6;color:${BRAND.navy};">
+            <strong>${safePlan}</strong> allows <strong>${limitLabel}</strong> participants across all sessions.
+            Current usage is <strong>${usedLabel} / ${limitLabel}</strong>.
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:${BRAND.slate};">
+      You can still run multiple sessions. To free capacity, end or reset a session, or ask your administrator to upgrade your plan.
+    </p>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 28px;">
+      <tr>
+        <td align="center" style="border-radius:12px;background:linear-gradient(135deg,${BRAND.navy} 0%,${BRAND.navyMid} 100%);">
+          <a class="cta-button" href="${escapeHtml(loginUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:${BRAND.white};text-decoration:none;border-radius:12px;">
+            Open host dashboard
+          </a>
+        </td>
+      </tr>
+    </table>`;
+
+  const html = renderEmailLayout({
+    preheader: `Your ${planName || "plan"} participant limit (${limitLabel}) has been reached.`,
+    brandName,
+    title: "Participant limit reached",
+    bodyHtml,
+    footerNote: "You received this email because a participant tried to join after your plan limit was reached.",
+    logoCid,
+    logoUrl
+  });
+
+  const text = `${greeting}
+
+Your participant limit has been reached. New people can no longer join any of your sessions until capacity is available.
+
+PLAN LIMIT REACHED
+Plan: ${planName || "your plan"}
+Usage: ${usedLabel} / ${limitLabel}
+
+You can still run multiple sessions. To free capacity, end or reset a session, or ask your administrator to upgrade your plan.
+
+Open host dashboard: ${loginUrl}
+
+— ${brandName || "Quiz Platform"}`;
+
+  return {
+    subject: `Participant limit reached on ${brandName || "Quiz Platform"}`,
+    text,
+    html
+  };
+}
+
 module.exports = {
   escapeHtml,
   renderEmailLayout,
   renderPasswordResetEmail,
   renderNewUserWelcomeEmail,
+  renderParticipantLimitExceededEmail,
   buildLoginUrl,
   buildEmailLogoUrl,
   EMAIL_LOGO_CID

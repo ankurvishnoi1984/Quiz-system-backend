@@ -29,10 +29,66 @@ function validateCreateUserPayload(payload) {
     errors.push("dept_id is required for the selected role");
   }
 
+  if (payload?.plan_id != null && payload.plan_id !== "") {
+    const planId = Number(payload.plan_id);
+    if (!Number.isInteger(planId) || planId <= 0) {
+      errors.push("plan_id must be a positive number");
+    }
+  }
+
   return errors;
+}
+
+function validateExtraParticipantsPayload(payload) {
+  const errors = [];
+  if (!payload || typeof payload !== "object") {
+    return ["payload must be an object"];
+  }
+
+  const hasAdd = payload.add !== undefined;
+  const hasSet = payload.set !== undefined;
+  if (hasAdd === hasSet) {
+    errors.push("provide either add or set");
+  }
+
+  if (hasAdd) {
+    const add = Number(payload.add);
+    if (!Number.isInteger(add) || add === 0) {
+      errors.push("add must be a non-zero whole number");
+    }
+  }
+
+  if (hasSet) {
+    const set = Number(payload.set);
+    if (!Number.isInteger(set) || set < 0) {
+      errors.push("set must be a whole number of 0 or more");
+    }
+  }
+
+  if (
+    payload.note != null &&
+    payload.note !== "" &&
+    typeof payload.note !== "string"
+  ) {
+    errors.push("note must be a string");
+  }
+
+  return errors;
+}
+
+function validateUserStatusPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return ["payload must be an object"];
+  }
+  if (typeof payload.is_active !== "boolean") {
+    return ["is_active must be a boolean"];
+  }
+  return [];
 }
 
 module.exports = {
   validateCreateUserPayload,
+  validateExtraParticipantsPayload,
+  validateUserStatusPayload,
   VALID_ADMIN_CREATED_ROLES
 };

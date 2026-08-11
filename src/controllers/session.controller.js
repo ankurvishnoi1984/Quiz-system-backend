@@ -232,7 +232,8 @@ async function lookupByCode(req, res) {
           quiz_total_time_minutes: session.quiz_total_time_minutes ?? null,
           allow_late_join: Boolean(session.allow_late_join),
           join_blocked: Boolean(joinBlock.blocked),
-          join_blocked_message: joinBlock.message || null
+          join_blocked_message: joinBlock.message || null,
+          join_blocked_reason: joinBlock.reason || null
         }
       },
       "Session found",

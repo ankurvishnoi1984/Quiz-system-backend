@@ -2,7 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const nodemailer = require("nodemailer");
 const { MailConfig } = require("../models");
-const { renderPasswordResetEmail, renderNewUserWelcomeEmail, EMAIL_LOGO_CID } = require("./email-templates");
+const {
+  renderPasswordResetEmail,
+  renderNewUserWelcomeEmail,
+  renderParticipantLimitExceededEmail,
+  EMAIL_LOGO_CID
+} = require("./email-templates");
 
 const EMAIL_LOGO_PATH = path.join(__dirname, "../../assets/email-logo.png");
 
@@ -138,9 +143,32 @@ async function sendNewUserWelcomeEmail({
   });
 }
 
+async function sendParticipantLimitExceededEmail({ to, fullName, planName, used, limit }) {
+  const config = await getActiveMailConfig();
+  const brandName = config?.sender_name || "Quiz Platform";
+  const logoAttachment = getEmailLogoAttachment();
+  const { subject, text, html } = renderParticipantLimitExceededEmail({
+    fullName,
+    planName,
+    used,
+    limit,
+    brandName,
+    logoCid: logoAttachment ? EMAIL_LOGO_CID : null
+  });
+
+  await sendMailWithConfig(config, {
+    to,
+    subject,
+    text,
+    html,
+    attachments: logoAttachment ? [logoAttachment] : []
+  });
+}
+
 module.exports = {
   getActiveMailConfig,
   sendMail,
   sendPasswordResetEmail,
-  sendNewUserWelcomeEmail
+  sendNewUserWelcomeEmail,
+  sendParticipantLimitExceededEmail
 };
