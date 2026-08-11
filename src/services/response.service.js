@@ -307,11 +307,8 @@ async function submitResponse({ participant, input }) {
     error.statusCode = 403;
     throw error;
   }
-  if (
-    participant.assigned_set_id &&
-    question.set_id &&
-    Number(participant.assigned_set_id) !== Number(question.set_id)
-  ) {
+  const { participantCanAccessQuestion } = require("./question-set.service");
+  if (!participantCanAccessQuestion(participant, question)) {
     const error = new Error("Question is not in your assigned set");
     error.statusCode = 403;
     throw error;
@@ -942,12 +939,30 @@ async function listParticipantQuestionsService({ sessionId, participant }) {
     throw error;
   }
 
+  if (participant) {
+    const { assignRandomSetToParticipant } = require("./question-set.service");
+    await assignRandomSetToParticipant(session, participant);
+  }
+
   const questionWhere = { session_id: sessionId, is_live: true };
   if (participant?.assigned_set_id) {
     // Participants see their assigned set plus shared questions that belong to no set.
-    questionWhere.set_id = {
-      [Op.or]: [null, Number(participant.assigned_set_id)]
-    };
+    // Op.is is required for NULL — `set_id = NULL` would match nothing.
+    questionWhere[Op.and] = [
+      {
+        [Op.or]: [
+          { set_id: { [Op.is]: null } },
+          { set_id: Number(participant.assigned_set_id) }
+        ]
+      }
+    ];
+  } else {
+    const setQuestionCount = await Question.count({
+      where: { session_id: sessionId, set_id: { [Op.ne]: null } }
+    });
+    if (setQuestionCount > 0) {
+      questionWhere.set_id = { [Op.is]: null };
+    }
   }
 
   let questions = await Question.findAll({

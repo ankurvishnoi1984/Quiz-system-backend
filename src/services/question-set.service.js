@@ -1,5 +1,6 @@
+const { Op } = require("sequelize");
 const { sequelize } = require("../config/database");
-const { Question, QuestionSet, Participant } = require("../models");
+const { Question, QuestionSet, Participant, Session } = require("../models");
 
 function sessionAccess() {
   return require("./session.service");
@@ -165,45 +166,91 @@ async function deleteQuestionSet({ sessionId, setId, user }) {
   return { deleted: true, set_id: Number(setId) };
 }
 
+async function listNonemptySetIds(sessionId, transaction) {
+  const rows = await Question.findAll({
+    where: {
+      session_id: sessionId,
+      set_id: { [Op.ne]: null }
+    },
+    attributes: ["set_id"],
+    group: ["set_id"],
+    raw: true,
+    transaction
+  });
+  return [
+    ...new Set(
+      rows
+        .map((row) => Number(row.set_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )
+  ];
+}
+
 /**
- * Randomly assign a set when the session uses 2+ non-empty sets and the
- * participant does not already have one. Returning joiners keep their set.
+ * Assign a set when the session has questions in sets and this participant
+ * does not already have one. Returning joiners keep their set.
+ *
+ * Picks among the least-used nonempty sets (random among ties) so 2–3 testers
+ * don't all land on Set A by chance.
  */
 async function assignRandomSetToParticipant(session, participant) {
   if (!session || !participant) return participant;
   if (session.participant_navigation_enabled === false) return participant;
   if (participant.assigned_set_id) return participant;
+  if (!participant.participant_id) return participant;
 
-  const sets = await QuestionSet.findAll({
-    where: { session_id: session.session_id },
-    attributes: ["set_id"]
+  await sequelize.transaction(async (t) => {
+    const locked = await Participant.findByPk(participant.participant_id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+    if (!locked) return;
+    if (locked.assigned_set_id) {
+      participant.assigned_set_id = Number(locked.assigned_set_id);
+      return;
+    }
+
+    await Session.findByPk(session.session_id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    const nonemptyIds = await listNonemptySetIds(session.session_id, t);
+    if (!nonemptyIds.length) return;
+
+    const usageRows = await Participant.findAll({
+      where: {
+        session_id: session.session_id,
+        assigned_set_id: { [Op.in]: nonemptyIds },
+        participant_id: { [Op.ne]: locked.participant_id }
+      },
+      attributes: ["assigned_set_id"],
+      raw: true,
+      transaction: t
+    });
+
+    const usedBySet = new Map(nonemptyIds.map((id) => [id, 0]));
+    for (const row of usageRows) {
+      const id = Number(row.assigned_set_id);
+      if (usedBySet.has(id)) usedBySet.set(id, usedBySet.get(id) + 1);
+    }
+
+    const min = Math.min(...usedBySet.values());
+    const leastUsed = nonemptyIds.filter((id) => usedBySet.get(id) === min);
+    const picked = leastUsed[Math.floor(Math.random() * leastUsed.length)];
+
+    await locked.update({ assigned_set_id: picked }, { transaction: t });
+    participant.assigned_set_id = picked;
   });
-  if (sets.length < 2) return participant;
 
-  const counts = await Question.findAll({
-    where: { session_id: session.session_id },
-    attributes: ["set_id", [sequelize.fn("COUNT", sequelize.col("question_id")), "question_count"]],
-    group: ["set_id"],
-    raw: true
-  });
-  const nonemptyIds = counts
-    .filter((row) => row.set_id != null && Number(row.question_count) > 0)
-    .map((row) => Number(row.set_id));
-  if (nonemptyIds.length < 2) return participant;
-
-  const picked = nonemptyIds[Math.floor(Math.random() * nonemptyIds.length)];
-  await Participant.update(
-    { assigned_set_id: picked },
-    { where: { participant_id: participant.participant_id } }
-  );
-  participant.assigned_set_id = picked;
   return participant;
 }
 
 function participantCanAccessQuestion(participant, question) {
   if (!participant || !question) return false;
   if (Number(participant.session_id) !== Number(question.session_id)) return false;
-  if (!participant.assigned_set_id || !question.set_id) return true;
+  if (!question.set_id) return true;
+  if (!participant.assigned_set_id) return false;
   return Number(participant.assigned_set_id) === Number(question.set_id);
 }
 
