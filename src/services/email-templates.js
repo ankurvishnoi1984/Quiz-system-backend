@@ -522,7 +522,7 @@ function renderParticipantLimitExceededEmail({
     </table>
 
     <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:${BRAND.slate};">
-      You can still run multiple sessions. To free capacity, end or reset a session, or ask your administrator to upgrade your plan.
+      Ask your administrator to upgrade your plan.
     </p>
 
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 28px;">
@@ -553,7 +553,7 @@ PLAN LIMIT REACHED
 Plan: ${planName || "your plan"}
 Usage: ${usedLabel} / ${limitLabel}
 
-You can still run multiple sessions. To free capacity, end or reset a session, or ask your administrator to upgrade your plan.
+Ask your administrator to upgrade your plan.
 
 Open host dashboard: ${loginUrl}
 

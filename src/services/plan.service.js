@@ -4,7 +4,7 @@ const { Plan, User, Session, Participant } = require("../models");
 const { sendParticipantLimitExceededEmail } = require("./email.service");
 
 const ACCOUNT_PLAN_LIMIT_MESSAGE =
-  "Participant limit exceeded for this account. Please contact the session host.";
+  "Participant limit exceeded for this session. Please contact the session host.";
 const PLAN_LIMIT_EMAIL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function toPlanPayload(plan) {
